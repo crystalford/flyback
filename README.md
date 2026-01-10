@@ -411,7 +411,7 @@ On startup (and via `node scripts/reconcile.js`), the server performs a read-onl
 - windowed final-resolution token sum vs windowed aggregate resolved value
 - lifetime budget delta vs total final-resolution token sum
 
-Reconciliation logs `reconcile.ok` or `reconcile.mismatch` with campaign identifiers and a tolerance. Without transactions and multi-writer locks, V3 is required to guarantee exact reconciliation under concurrent updates and distributed postbacks.
+Reconciliation logs `reconcile.ok` or `reconcile.mismatch` with campaign identifiers and a tolerance. Without transactions and multi-writer locks, V3 is required to guarantee exact reconciliation under concurrent updates and distributed postbacks. The ledger is a future reconciliation target but is not part of the current checks.
 
 ## 16.5 V2.5 Selection Modes
 
@@ -443,6 +443,43 @@ Publisher floor config and last-window observed values are surfaced in `/v1/repo
 Campaigns may define `caps` (e.g., `max_outcomes`, `max_weighted_value`). Final resolutions beyond caps are accepted but marked `billable: false`; budgets are not decremented. Caps are enforced during resolution only and surfaced in `/v1/reports` along with last-window billable vs non-billable counts.
 
 Billing, invoicing, and payout enforcement remain V3.
+
+## 16.9 Ledger Skeleton (No Payouts)
+
+Billable final resolutions append entries to `data/ledger.json` (append-only). Each entry records the raw and weighted values plus a computed `payout_cents` using publisher rev-share settings. This provides an auditable spine without executing payouts or advertiser billing.
+
+## 16.10 Ledger Invariants
+
+On startup (and via `node scripts/reconcile.js`), ledger reconciliation compares per-campaign ledger payout sums against expected payouts derived from billable final tokens and rev-share settings (window and lifetime). These checks are read-only and logged as `ledger.reconcile.ok` or `ledger.reconcile.mismatch`.
+
+Without transactional writes across tokens, aggregates, budgets, and the ledger, V3 cannot guarantee exact ledger consistency under concurrent updates.
+
+## 16.11 Event Log as Source of Truth
+
+The append-only `data/events.ndjson` is authoritative. Each line is a JSON event with a monotonic `seq`, `event_id`, `ts`, `type`, and `payload`. `data/event_state.json` persists the last used sequence so restarts remain monotonic. Tokens, aggregates, budgets, and the ledger are projections derived from events.
+
+Events are the only writes. Projections are derived, disposable, and rebuildable.
+
+Rebuild procedure:
+
+1. Ensure `data/snapshot.json` is present (optional but recommended).
+2. Set `REBUILD_FROM_EVENTS=true` and start the server. It will load the snapshot (if present) and replay events where `seq > snapshot_seq`.
+
+Compaction:
+
+- Run `node scripts/compact.js` to write a new `events.ndjson` containing only events after `snapshot_seq`. The script updates `event_state.json` and logs `compact.ok`.
+
+## 16.12 Concurrency & Atomicity
+
+Event appends use lockfiles for `events.ndjson`, `event_state.json`, and `snapshot.json` to guard multi-event batches and snapshots. Final resolutions append a batch (`resolution.final`, `budget.decrement`, `ledger.append`) with consecutive seq or abort as a unit. Projections apply events with `seq > applied_seq` and persist `projection_state.json`. When `REBUILD_FROM_EVENTS=true`, live writes are rejected.
+
+## 16.13 Read Model Separation
+
+Writes mutate projections. Reads derive views. These are intentionally separate.
+
+## 16.14 Serialized Append + Apply
+
+Event append and projection apply are serialized to guarantee consistency under concurrency.
 
 ## 16.2 V2 Config Versions & Migrations
 

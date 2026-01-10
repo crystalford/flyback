@@ -5,12 +5,13 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.join(__dirname, "..");
-const dataDir = path.join(rootDir, "data");
+const dataDir = process.env.FLYBACK_DATA_DIR || path.join(rootDir, "data");
 
 const registryFile = path.join(dataDir, "registry.json");
 const budgetsFile = path.join(dataDir, "budgets.json");
 const aggregatesFile = path.join(dataDir, "aggregates.json");
 const tokensFile = path.join(dataDir, "tokens.json");
+const ledgerFile = path.join(dataDir, "ledger.json");
 
 const AGGREGATION_WINDOW_MS = 10 * 60 * 1000;
 const RECONCILIATION_TOLERANCE = 0.001;
@@ -66,6 +67,13 @@ const registry = readJsonFile(registryFile);
 const budgets = readJsonFile(budgetsFile);
 const aggregatesPayload = readJsonFile(aggregatesFile);
 const tokens = readJsonFile(tokensFile) || [];
+const ledgerPayload = readJsonFile(ledgerFile);
+
+if (!ledgerPayload || !Array.isArray(ledgerPayload.entries)) {
+  console.error("reconcile.ledger.missing", { path: ledgerFile });
+  process.exit(1);
+}
+const ledgerEntries = ledgerPayload.entries;
 
 if (!registry || !budgets || !aggregatesPayload) {
   console.error("reconcile.load.failed", { registry: !!registry, budgets: !!budgets, aggregates: !!aggregatesPayload });
@@ -133,5 +141,63 @@ registry.campaigns.forEach((campaign) => {
     console.log("reconcile.mismatch", payload);
   } else {
     console.log("reconcile.ok", payload);
+  }
+});
+
+registry.campaigns.forEach((campaign) => {
+  const windowStartMs = aggregationWindow.started_at_ms || Date.now();
+  const windowEndMs = windowStartMs + AGGREGATION_WINDOW_MS;
+  const revShareBps = Number.isFinite(campaign.publisher_rev_share_bps)
+    ? campaign.publisher_rev_share_bps
+    : registry.policies?.[campaign.publisher_id]?.rev_share_bps ?? 7000;
+
+  let expectedWindow = 0;
+  let expectedLifetime = 0;
+  tokens.forEach((token) => {
+    if (!token.scope || token.scope.campaign_id !== campaign.campaign_id) {
+      return;
+    }
+    if (token.billable !== true) {
+      return;
+    }
+    const finalEvent = getFinalResolutionEvent(token);
+    if (!finalEvent) {
+      return;
+    }
+    const value = Number.isFinite(finalEvent.resolved_value) ? finalEvent.resolved_value : 0;
+    const payoutCents = Math.round(value * 100 * (revShareBps / 10000));
+    expectedLifetime += payoutCents;
+    const resolvedAtMs = new Date(finalEvent.resolved_at).getTime();
+    if (resolvedAtMs >= windowStartMs && resolvedAtMs < windowEndMs) {
+      expectedWindow += payoutCents;
+    }
+  });
+
+  const ledgerWindowSum = ledgerEntries
+    .filter((entry) => entry.campaign_id === campaign.campaign_id && entry.window_id === aggregationWindow.started_at)
+    .reduce((sum, entry) => sum + (Number.isFinite(entry.payout_cents) ? entry.payout_cents : 0), 0);
+  const ledgerLifetimeSum = ledgerEntries
+    .filter((entry) => entry.campaign_id === campaign.campaign_id)
+    .reduce((sum, entry) => sum + (Number.isFinite(entry.payout_cents) ? entry.payout_cents : 0), 0);
+
+  const windowMismatch = Math.abs(ledgerWindowSum - expectedWindow) > RECONCILIATION_TOLERANCE;
+  const lifetimeMismatch = Math.abs(ledgerLifetimeSum - expectedLifetime) > RECONCILIATION_TOLERANCE;
+  const payload = {
+    campaign_id: campaign.campaign_id,
+    advertiser_id: campaign.advertiser_id || null,
+    publisher_id: campaign.publisher_id,
+    window_id: aggregationWindow.started_at,
+    ledger_sum: ledgerWindowSum,
+    expected_sum: expectedWindow,
+    tolerance: RECONCILIATION_TOLERANCE
+  };
+  if (windowMismatch || lifetimeMismatch) {
+    console.log("ledger.reconcile.mismatch", {
+      ...payload,
+      lifetime_ledger_sum: ledgerLifetimeSum,
+      lifetime_expected_sum: expectedLifetime
+    });
+  } else {
+    console.log("ledger.reconcile.ok", payload);
   }
 });

@@ -1,0 +1,27 @@
+{
+  "snapshot_seq": 0,
+  "window": {
+    "started_at": "1970-01-01T00:00:00.000Z",
+    "started_at_ms": 0,
+    "window_ms": 600000
+  },
+  "last_window": null,
+  "budgets": [
+    { "campaign_id": "campaign-v1", "total": 120, "remaining": 120 },
+    { "campaign_id": "campaign-v2", "total": 80, "remaining": 80 },
+    { "campaign_id": "campaign-v3", "total": 60, "remaining": 60 },
+    { "campaign_id": "campaign-labs-1", "total": 40, "remaining": 40 }
+  ],
+  "aggregates": {
+    "impressions": [],
+    "intents": [],
+    "resolved_intents": [],
+    "resolved_value_sum": [],
+    "partial_resolutions": [],
+    "weighted_resolved_value_sum": [],
+    "billable_resolutions": [],
+    "non_billable_resolutions": []
+  },
+  "ledger": [],
+  "tokens": []
+}

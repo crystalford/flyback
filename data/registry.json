@@ -34,7 +34,8 @@
       "caps": {
         "max_outcomes": 10,
         "max_weighted_value": 200
-      }
+      },
+      "publisher_rev_share_bps": 7200
     },
     {
       "campaign_id": "campaign-v2",
@@ -121,7 +122,8 @@
       "demand_priority": ["direct", "performance", "affiliate"],
       "selection_mode": "raw",
       "floor_type": "raw",
-      "floor_value_per_1k": 0
+      "floor_value_per_1k": 0,
+      "rev_share_bps": 7000
     },
     "publisher-labs": {
       "allowed_demand_types": ["performance", "affiliate"],
@@ -129,7 +131,8 @@
       "demand_priority": ["performance", "affiliate"],
       "selection_mode": "weighted",
       "floor_type": "weighted",
-      "floor_value_per_1k": 5
+      "floor_value_per_1k": 5,
+      "rev_share_bps": 6500
     }
   }
 }

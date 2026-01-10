@@ -5,7 +5,8 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.join(__dirname, "..");
-const registryPath = path.join(rootDir, "data", "registry.json");
+const dataDir = process.env.FLYBACK_DATA_DIR || path.join(rootDir, "data");
+const registryPath = path.join(dataDir, "registry.json");
 
 const readJsonFile = (filePath) => {
   if (!fs.existsSync(filePath)) {
@@ -55,6 +56,9 @@ const validateRegistry = (registry) => {
       if (policy.floor_value_per_1k !== undefined && !Number.isFinite(policy.floor_value_per_1k)) {
         errors.push("policy_floor_value_invalid");
       }
+      if (policy.rev_share_bps !== undefined && !Number.isFinite(policy.rev_share_bps)) {
+        errors.push("policy_rev_share_invalid");
+      }
     });
   }
   registry.campaigns?.forEach((campaign) => {
@@ -69,6 +73,9 @@ const validateRegistry = (registry) => {
     }
     if (campaign.caps?.max_weighted_value !== undefined && !Number.isFinite(campaign.caps.max_weighted_value)) {
       errors.push("campaign_caps_max_weighted_invalid");
+    }
+    if (campaign.publisher_rev_share_bps !== undefined && !Number.isFinite(campaign.publisher_rev_share_bps)) {
+      errors.push("campaign_rev_share_invalid");
     }
   });
   return errors;

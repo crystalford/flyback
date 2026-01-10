@@ -5,7 +5,7 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.join(__dirname, "..");
-const dataDir = path.join(rootDir, "data");
+const dataDir = process.env.FLYBACK_DATA_DIR || path.join(rootDir, "data");
 
 const registry = {
   version: 1,
@@ -24,7 +24,8 @@ const registry = {
       advertiser_id: "advertiser-demo",
       creative_ids: ["creative-v1", "creative-v2"],
       outcome_weights: { lead: 1, signup: 3, purchase: 10 },
-      caps: { max_outcomes: 10, max_weighted_value: 200 }
+      caps: { max_outcomes: 10, max_weighted_value: 200 },
+      publisher_rev_share_bps: 7200
     },
     {
       campaign_id: "campaign-v2",
@@ -65,7 +66,8 @@ const registry = {
       demand_priority: ["direct", "performance", "affiliate"],
       selection_mode: "raw",
       floor_type: "raw",
-      floor_value_per_1k: 0
+      floor_value_per_1k: 0,
+      rev_share_bps: 7000
     },
     "publisher-labs": {
       allowed_demand_types: ["performance", "affiliate"],
@@ -73,7 +75,8 @@ const registry = {
       demand_priority: ["performance", "affiliate"],
       selection_mode: "weighted",
       floor_type: "weighted",
-      floor_value_per_1k: 5
+      floor_value_per_1k: 5,
+      rev_share_bps: 6500
     }
   }
 };
@@ -126,9 +129,29 @@ if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
 
+const ledger = { version: 1, entries: [] };
+const eventIndex = { version: 1, event_ids: [], updated_at: new Date().toISOString() };
+const eventState = { last_seq: 0, updated_at: new Date().toISOString() };
+const projectionState = { applied_seq: 0, updated_at: new Date().toISOString() };
+const snapshot = {
+  snapshot_seq: 0,
+  window: aggregates.window,
+  last_window: aggregates.last_window,
+  budgets: budgets.campaigns,
+  aggregates: aggregates.current,
+  ledger: ledger.entries,
+  tokens: []
+};
+
 fs.writeFileSync(path.join(dataDir, "registry.json"), `${JSON.stringify(registry, null, 2)}\n`);
 fs.writeFileSync(path.join(dataDir, "budgets.json"), `${JSON.stringify(budgets, null, 2)}\n`);
 fs.writeFileSync(path.join(dataDir, "keys.json"), `${JSON.stringify(keys, null, 2)}\n`);
 fs.writeFileSync(path.join(dataDir, "aggregates.json"), `${JSON.stringify(aggregates, null, 2)}\n`);
+fs.writeFileSync(path.join(dataDir, "ledger.json"), `${JSON.stringify(ledger, null, 2)}\n`);
+fs.writeFileSync(path.join(dataDir, "events.ndjson"), "");
+fs.writeFileSync(path.join(dataDir, "event_state.json"), `${JSON.stringify(eventState, null, 2)}\n`);
+fs.writeFileSync(path.join(dataDir, "event_index.json"), `${JSON.stringify(eventIndex, null, 2)}\n`);
+fs.writeFileSync(path.join(dataDir, "projection_state.json"), `${JSON.stringify(projectionState, null, 2)}\n`);
+fs.writeFileSync(path.join(dataDir, "snapshot.json"), `${JSON.stringify(snapshot, null, 2)}\n`);
 
 console.log("seed.complete", { data_dir: dataDir });
