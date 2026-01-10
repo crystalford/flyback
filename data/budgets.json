@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "campaigns": [
+    { "campaign_id": "campaign-v1", "total": 120, "remaining": 120 },
+    { "campaign_id": "campaign-v2", "total": 80, "remaining": 80 },
+    { "campaign_id": "campaign-v3", "total": 60, "remaining": 60 },
+    { "campaign_id": "campaign-labs-1", "total": 40, "remaining": 40 }
+  ]
+}

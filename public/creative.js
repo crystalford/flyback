@@ -93,9 +93,9 @@ const postIntent = async ({
   return response.json();
 };
 
-const resolveToken = async (tokenId, stage = "resolved", value = 10) => {
+const resolveToken = async (tokenId, stage = "resolved", value = 10, outcomeType = "purchase") => {
   const response = await fetch(
-    `/v1/postback?token_id=${encodeURIComponent(tokenId)}&value=${encodeURIComponent(value)}&stage=${encodeURIComponent(stage)}`
+    `/v1/postback?token_id=${encodeURIComponent(tokenId)}&value=${encodeURIComponent(value)}&stage=${encodeURIComponent(stage)}&outcome_type=${encodeURIComponent(outcomeType)}`
   );
 
   if (!response.ok) {
@@ -120,15 +120,15 @@ const mountCru = (root, config) => {
 
   const creativeBehavior = (() => {
     if (config.creative_id === "creative-v2" || config.creative_id === "creative-v5") {
-      return { intentType: "qualified", stages: ["lead", "purchase"], values: [2, 15] };
+      return { intentType: "qualified", stages: ["lead", "purchase"], values: [2, 15], outcomes: ["lead", "purchase"] };
     }
     if (config.creative_id === "creative-v3") {
-      return { intentType: "affiliate_signup", stages: ["purchase"], values: [8] };
+      return { intentType: "affiliate_signup", stages: ["purchase"], values: [8], outcomes: ["purchase"] };
     }
     if (config.creative_id === "creative-v4") {
-      return { intentType: "demo_request", stages: ["lead"], values: [4] };
+      return { intentType: "demo_request", stages: ["lead"], values: [4], outcomes: ["lead"] };
     }
-    return { intentType: "qualified", stages: ["resolved"], values: [10] };
+    return { intentType: "qualified", stages: ["resolved"], values: [10], outcomes: ["signup"] };
   })();
   const status = document.createElement("div");
   status.style.marginBottom = "12px";
@@ -209,7 +209,8 @@ const mountCru = (root, config) => {
         for (let index = 0; index < creativeBehavior.stages.length; index += 1) {
           const stage = creativeBehavior.stages[index];
           const value = creativeBehavior.values[index] || 1;
-          lastPostback = await resolveToken(token.token_id, stage, value);
+          const outcomeType = creativeBehavior.outcomes[index] || "purchase";
+          lastPostback = await resolveToken(token.token_id, stage, value, outcomeType);
           status.textContent = `State: ${lastPostback.token.status} (${stage})`;
         }
         return lastPostback;

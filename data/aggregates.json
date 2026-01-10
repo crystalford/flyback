@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "window": {
+    "started_at": "1970-01-01T00:00:00.000Z",
+    "started_at_ms": 0,
+    "window_ms": 600000
+  },
+  "current": {
+    "impressions": [],
+    "intents": [],
+    "resolved_intents": [],
+    "resolved_value_sum": [],
+    "partial_resolutions": [],
+    "weighted_resolved_value_sum": [],
+    "billable_resolutions": [],
+    "non_billable_resolutions": []
+  },
+  "last_window": null
+}

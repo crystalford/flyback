@@ -389,11 +389,70 @@ The server logs explicitly distinguish token lifecycle transitions:
 - `postback.expired` → expiry enforced
 - `postback.idempotent` → duplicate or late postback acknowledged
 
-For development inspection, `GET /v1/reports` returns the current in-memory aggregate metrics (read-only, reset on restart).
+For development inspection, `GET /v1/reports` returns the current aggregate metrics (read-only, windowed).
 
-The fill path now includes a minimal creative selection hook and a small in-memory registry, so V1 structurally supports multiple creatives while still serving a single selected creative.
+The fill path now includes a minimal creative selection hook backed by file-based registries, so V2 structurally supports multiple creatives while still serving a single selected creative.
 
 No dashboards, routing, or multi-demand logic is implemented in this V1 demo.
+
+## 16.1 V2 Configuration Scripts
+
+- `node scripts/seed.js` initializes `data/registry.json`, `data/budgets.json`, `data/keys.json`, and `data/aggregates.json`.
+- `node scripts/validate.js` validates `data/registry.json`.
+
+## 16.3 V2 API Keys
+
+API keys live in `data/keys.json`. Send a publisher key in `x-api-key` for `/v1/fill` and `/v1/intent`, and an advertiser key for `/v1/postback`. Demo mode uses the default keys when the header is omitted.
+
+## 16.4 V2 Reconciliation
+
+On startup (and via `node scripts/reconcile.js`), the server performs a read-only reconciliation pass per campaign:
+
+- windowed final-resolution token sum vs windowed aggregate resolved value
+- lifetime budget delta vs total final-resolution token sum
+
+Reconciliation logs `reconcile.ok` or `reconcile.mismatch` with campaign identifiers and a tolerance. Without transactions and multi-writer locks, V3 is required to guarantee exact reconciliation under concurrent updates and distributed postbacks.
+
+## 16.5 V2.5 Selection Modes
+
+Publishers can set `selection_mode` in `data/registry.json` policies:
+
+- `raw`: selection uses raw derived value per 1k impressions (default).
+- `weighted`: selection uses weighted derived value per 1k impressions when available, and falls back to raw values deterministically.
+
+Weighted mode is experimental and reversible; budgets and reconciliation remain based on raw resolved values only.
+
+## 16.6 V2.5 Observability & Guardrails
+
+Each `/v1/fill` records a lightweight selection decision (in-memory ring buffer). Add `?include_selections=true` to `/v1/reports` to inspect recent decisions for the authenticated publisher.
+
+When weighted selection diverges materially from raw ordering for consecutive windows, the server emits `selection.guardrail.warning` logs. This is diagnostic only and does not change routing or budgets.
+
+These guardrails precede billing, payouts, or default weighted routing.
+
+## 16.7 Publisher Contract Semantics (Pre-Billing)
+
+Publisher policies include `floor_type` (`raw` or `weighted`) and `floor_value_per_1k`. During selection, candidates below the active floor are excluded; if all candidates are excluded, the system deterministically falls back to the best available candidate and logs the fallback.
+
+Floors are enforced before money exists. Billing, invoicing, and payouts remain V3.
+
+Publisher floor config and last-window observed values are surfaced in `/v1/reports` for the authenticated publisher.
+
+## 16.8 Advertiser Outcome Caps (Pre-Billing)
+
+Campaigns may define `caps` (e.g., `max_outcomes`, `max_weighted_value`). Final resolutions beyond caps are accepted but marked `billable: false`; budgets are not decremented. Caps are enforced during resolution only and surfaced in `/v1/reports` along with last-window billable vs non-billable counts.
+
+Billing, invoicing, and payout enforcement remain V3.
+
+## 16.2 V2 Config Versions & Migrations
+
+Each config file includes a `version` integer. On startup, the server detects the version, runs in-process migrations in order, then validates the migrated shape. If a migration is missing or the version is ahead of the code, startup fails with a clear log.
+
+To add a new migration:
+
+1. Increment the target version constant in `server.js`.
+2. Add a migration function for the prior version to the appropriate migrations map.
+3. Update seed files to emit the new version.
 
 ## 17. Deployment
 

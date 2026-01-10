@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "default_demo_publisher_key": "demo-publisher-key",
+  "default_demo_advertiser_key": "demo-advertiser-key",
+  "publishers": [
+    {
+      "publisher_id": "publisher-demo",
+      "api_key": "demo-publisher-key"
+    },
+    {
+      "publisher_id": "publisher-labs",
+      "api_key": "labs-publisher-key"
+    }
+  ],
+  "advertisers": [
+    {
+      "advertiser_id": "advertiser-demo",
+      "api_key": "demo-advertiser-key"
+    },
+    {
+      "advertiser_id": "advertiser-labs",
+      "api_key": "labs-advertiser-key"
+    }
+  ]
+}
