@@ -109,7 +109,7 @@ registry.campaigns.forEach((campaign) => {
     .reduce((sum, entry) => sum + (Number.isFinite(entry.sum) ? entry.sum : 0), 0);
 
   let tokenSumWindow = 0;
-  let tokenSumTotal = 0;
+  let tokenSumBillableTotal = 0;
   tokens.forEach((token) => {
     if (!token.scope || token.scope.campaign_id !== campaign.campaign_id) {
       return;
@@ -119,7 +119,9 @@ registry.campaigns.forEach((campaign) => {
       return;
     }
     const value = Number.isFinite(finalEvent.resolved_value) ? finalEvent.resolved_value : 0;
-    tokenSumTotal += value;
+    if (token.billable === true) {
+      tokenSumBillableTotal += value;
+    }
     const resolvedAtMs = new Date(finalEvent.resolved_at).getTime();
     if (resolvedAtMs >= windowStartMs && resolvedAtMs < windowEndMs) {
       tokenSumWindow += value;
@@ -127,12 +129,13 @@ registry.campaigns.forEach((campaign) => {
   });
 
   const aggregateMismatch = Math.abs(tokenSumWindow - aggregateSum) > RECONCILIATION_TOLERANCE;
-  const budgetMismatch = Math.abs(tokenSumTotal - budgetDelta) > RECONCILIATION_TOLERANCE;
+  const budgetMismatch = Math.abs(tokenSumBillableTotal - budgetDelta) > RECONCILIATION_TOLERANCE;
   const payload = {
     campaign_id: campaign.campaign_id,
     advertiser_id: campaign.advertiser_id || null,
     window_id: aggregationWindow.started_at,
     token_sum: tokenSumWindow,
+    billable_token_sum: tokenSumBillableTotal,
     aggregate_sum: aggregateSum,
     budget_delta: budgetDelta,
     tolerance: RECONCILIATION_TOLERANCE

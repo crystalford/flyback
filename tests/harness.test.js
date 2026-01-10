@@ -5,6 +5,7 @@ import path from "path";
 import os from "os";
 import { fileURLToPath } from "url";
 import { spawn, spawnSync } from "child_process";
+import net from "net";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -25,7 +26,37 @@ const runScenario = (args, envOverrides = {}) => {
   });
 };
 
-const startServer = async (port, dataPath) => {
+const parseScenarioJson = (stdout) => {
+  if (!stdout) {
+    return {};
+  }
+  const lines = stdout.trim().split(/\r?\n/);
+  for (let idx = lines.length - 1; idx >= 0; idx -= 1) {
+    const line = lines[idx].trim();
+    if (!line.startsWith("{")) {
+      continue;
+    }
+    try {
+      return JSON.parse(line);
+    } catch (error) {
+      return {};
+    }
+  }
+  return {};
+};
+
+const getAvailablePort = () =>
+  new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.unref();
+    server.on("error", reject);
+    server.listen(0, () => {
+      const { port } = server.address();
+      server.close(() => resolve(port));
+    });
+  });
+
+const startServer = async (dataPath, port) => {
   const env = {
     ...process.env,
     PORT: String(port),
@@ -36,17 +67,33 @@ const startServer = async (port, dataPath) => {
     env,
     stdio: ["ignore", "pipe", "pipe"]
   });
+  let stdoutBuffer = "";
+  let stderrBuffer = "";
+  proc.stdout.on("data", (chunk) => {
+    stdoutBuffer += chunk.toString();
+  });
+  proc.stderr.on("data", (chunk) => {
+    stderrBuffer += chunk.toString();
+  });
   const ready = new Promise((resolve, reject) => {
     const timeout = setTimeout(() => reject(new Error("server_start_timeout")), 5000);
+    proc.once("exit", (code) => {
+      clearTimeout(timeout);
+      const combined = `${stderrBuffer}\n${stdoutBuffer}`.trim();
+      const tail = combined ? combined.split(/\r?\n/).slice(-5).join(" | ") : "";
+      const detail = tail ? `:${tail}` : "";
+      reject(new Error(`server_start_exit_${code}${detail}`));
+    });
     proc.stdout.on("data", (chunk) => {
-      if (chunk.toString().includes("Flyback server listening")) {
+      const text = chunk.toString();
+      if (text.includes("Flyback server listening")) {
         clearTimeout(timeout);
-        resolve();
+        resolve(port);
       }
     });
   });
   await ready;
-  return proc;
+  return { proc, port };
 };
 
 const stopServer = (proc) =>
@@ -76,8 +123,8 @@ test("read consistency returns post-batch state", async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "flyback-test-"));
   copyDataDir(tempDir);
 
-  const port = 3201;
-  const server = await startServer(port, tempDir);
+  const port = await getAvailablePort();
+  const { proc: server } = await startServer(tempDir, port);
   const baseUrl = `http://127.0.0.1:${port}`;
 
   const intent = await jsonFetch(`${baseUrl}/v1/intent`, {
@@ -117,11 +164,11 @@ test("event_id dedupe persists across restart", async () => {
   const eventId = "event-dedupe-test";
   runScenario(["append", eventId], { FLYBACK_DATA_DIR: tempDir });
   const firstCount = runScenario(["event-count"], { FLYBACK_DATA_DIR: tempDir });
-  const firstPayload = JSON.parse(firstCount.stdout || "{}");
+  const firstPayload = parseScenarioJson(firstCount.stdout);
 
   runScenario(["append", eventId], { FLYBACK_DATA_DIR: tempDir });
   const secondCount = runScenario(["event-count"], { FLYBACK_DATA_DIR: tempDir });
-  const secondPayload = JSON.parse(secondCount.stdout || "{}");
+  const secondPayload = parseScenarioJson(secondCount.stdout);
 
   assert.equal(firstPayload.lines, 1);
   assert.equal(secondPayload.lines, 1);
@@ -131,8 +178,8 @@ test("partial after final is recorded without extra budget impact", async () => 
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "flyback-test-"));
   copyDataDir(tempDir);
 
-  const port = 3202;
-  const server = await startServer(port, tempDir);
+  const port = await getAvailablePort();
+  const { proc: server } = await startServer(tempDir, port);
   const baseUrl = `http://127.0.0.1:${port}`;
 
   const intent = await jsonFetch(`${baseUrl}/v1/intent`, {

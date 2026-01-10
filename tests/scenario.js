@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
+import { fileURLToPath, pathToFileURL } from "url";
 import { randomUUID } from "crypto";
 
 process.env.START_SERVER = "false";
@@ -58,7 +58,7 @@ const createToken = ({ campaignId, publisherId, creativeId }) => {
 const scenario = process.argv[2];
 const eventId = process.argv[3];
 
-const { __test } = await import(path.join(rootDir, "server.js"));
+const { __test } = await import(pathToFileURL(path.join(rootDir, "server.js")).href);
 
 if (scenario === "append") {
   const token = createToken({

@@ -2,7 +2,7 @@
 Display-Native Intent & Performance System
 Reference Architecture (Engineering Handoff)
 
-Version: 0.2  
+Version: 0.3.0  
 Date: January 2026  
 Status: Codex Implementation Reference  
 Audience: Engineering / Systems Implementation
@@ -409,7 +409,7 @@ API keys live in `data/keys.json`. Send a publisher key in `x-api-key` for `/v1/
 On startup (and via `node scripts/reconcile.js`), the server performs a read-only reconciliation pass per campaign:
 
 - windowed final-resolution token sum vs windowed aggregate resolved value
-- lifetime budget delta vs total final-resolution token sum
+- lifetime budget delta vs total billable final-resolution token sum
 
 Reconciliation logs `reconcile.ok` or `reconcile.mismatch` with campaign identifiers and a tolerance. Without transactions and multi-writer locks, V3 is required to guarantee exact reconciliation under concurrent updates and distributed postbacks. The ledger is a future reconciliation target but is not part of the current checks.
 
@@ -480,6 +480,34 @@ Writes mutate projections. Reads derive views. These are intentionally separate.
 ## 16.14 Serialized Append + Apply
 
 Event append and projection apply are serialized to guarantee consistency under concurrency.
+
+## 16.15 Process Model
+
+One writer process owns event appends (`WRITE_ENABLED=true`). Read-only replicas may run with `WRITE_ENABLED=false` and serve `/v1/fill` + `/v1/reports`. Multi-process writers are unsupported.
+
+## 16.16 Process Topology
+
+Run a single writer service (role `writer`) to own event appends and projection updates. Run any number of read replicas (role `replica`) with writes disabled for `/v1/fill` and `/v1/reports`. Multi-writer deployments are unsupported.
+
+## 16.17 Stability Contract (V3)
+
+Events are the only write source of truth. Projections are derived and rebuildable. Single-writer behavior is enforced via `WRITE_ENABLED`. No backward-incompatible changes without a version bump.
+
+## 16.18 Schemas & Validation (V4)
+
+JSON schemas define the shape of events, registry/policies, and report read models. Event appends and config loads validate against these schemas; unknown fields are tolerated for forward compatibility, but missing required fields are rejected.
+
+## 16.19 External Integration Boundary (V4-C)
+
+A writer can deliver resolved outcomes to an external webhook. Configure `WEBHOOK_URL` to enable delivery. Only writer processes send; replicas skip delivery. Delivery is at-least-once, sequential, and retry-safe (exponential backoff) using a persisted `last_delivered_seq` cursor in `data/delivery_state.json`.
+
+For local testing, run `npm run webhook:sink` (listens on `http://0.0.0.0:4040`) and set `WEBHOOK_URL=http://127.0.0.1:4040`.
+
+Replay deliveries from a given sequence with `WEBHOOK_URL=... npm run webhook:replay -- --from 1 --to 50`.
+
+## 16.20 Ops Console (V5)
+
+Visit `/ops.html` for a read-only control room that surfaces aggregates, ledger stats, and selection decisions. This is a viewer only and uses `/v1/reports` under the hood.
 
 ## 16.2 V2 Config Versions & Migrations
 

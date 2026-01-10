@@ -22,6 +22,7 @@ const eventStateFile = path.join(dataDir, "event_state.json");
 const snapshotFile = path.join(dataDir, "snapshot.json");
 const projectionStateFile = path.join(dataDir, "projection_state.json");
 const eventIndexFile = path.join(dataDir, "event_index.json");
+const deliveryStateFile = path.join(dataDir, "delivery_state.json");
 
 const contentTypes = {
   ".html": "text/html",
@@ -73,7 +74,33 @@ let eventIdIndex = new Set();
 let appliedEventIds = new Set();
 let reducerFailpointType = null;
 
+const VERSION = "0.3.0";
+const SCHEMA_VERSION = 1;
 const AGGREGATION_WINDOW_MS = 10 * 60 * 1000;
+const ROLE_ENV = (process.env.FLYBACK_ROLE || process.env.ROLE || "").toLowerCase();
+const VALID_ROLES = new Set(["writer", "replica"]);
+let resolvedRole = null;
+if (ROLE_ENV) {
+  if (VALID_ROLES.has(ROLE_ENV)) {
+    resolvedRole = ROLE_ENV;
+  } else {
+    console.log("process.role.invalid", { role: ROLE_ENV, allowed: Array.from(VALID_ROLES) });
+  }
+}
+let writeEnabled = process.env.WRITE_ENABLED !== "false";
+if (resolvedRole === "writer") {
+  writeEnabled = true;
+}
+if (resolvedRole === "replica") {
+  writeEnabled = false;
+}
+const WRITE_ENABLED = writeEnabled;
+const PROCESS_ROLE = resolvedRole || (WRITE_ENABLED ? "writer" : "replica");
+
+const WEBHOOK_URL = process.env.WEBHOOK_URL || "";
+const WEBHOOK_TIMEOUT_MS = Number(process.env.WEBHOOK_TIMEOUT_MS) || 5000;
+const WEBHOOK_RETRY_BASE_MS = Number(process.env.WEBHOOK_RETRY_BASE_MS) || 1000;
+const WEBHOOK_RETRY_MAX_MS = Number(process.env.WEBHOOK_RETRY_MAX_MS) || 30000;
 const BUDGET_DEPRIORITIZE_THRESHOLD = 0.2;
 const RECONCILIATION_TOLERANCE = 0.001;
 const SELECTION_HISTORY_LIMIT = 1000;
@@ -86,10 +113,545 @@ let aggregationWindow = {
   started_at_ms: Date.now(),
   started_at: new Date().toISOString()
 };
+let deliveryState = { last_delivered_seq: 0 };
+let deliveryInFlight = false;
+let deliveryRetryCount = 0;
+let deliveryNextAttemptAt = 0;
+let deliveryCursorIndex = 0;
 
 const logReadViolation = (context, path) => {
   console.log("readmodel.violation", { context, path });
   throw new Error("readmodel.violation");
+};
+
+const isPlainObject = (value) =>
+  value !== null && typeof value === "object" && !Array.isArray(value);
+
+const schemaTypeMatches = (type, value) => {
+  switch (type) {
+    case "object":
+      return isPlainObject(value);
+    case "array":
+      return Array.isArray(value);
+    case "string":
+      return typeof value === "string";
+    case "number":
+      return Number.isFinite(value);
+    case "integer":
+      return Number.isInteger(value);
+    case "boolean":
+      return typeof value === "boolean";
+    case "null":
+      return value === null;
+    default:
+      return true;
+  }
+};
+
+const validateSchema = (schema, value, path = "$") => {
+  const errors = [];
+  if (!schema || typeof schema !== "object") {
+    return errors;
+  }
+  if (schema.enum && !schema.enum.includes(value)) {
+    errors.push(`${path}.enum`);
+    return errors;
+  }
+  if (schema.type) {
+    const types = Array.isArray(schema.type) ? schema.type : [schema.type];
+    const matches = types.some((type) => schemaTypeMatches(type, value));
+    if (!matches) {
+      errors.push(`${path}.type`);
+      return errors;
+    }
+  }
+  if (schema.type === "array" && Array.isArray(value)) {
+    if (Number.isFinite(schema.minItems) && value.length < schema.minItems) {
+      errors.push(`${path}.minItems`);
+    }
+    if (schema.items) {
+      value.forEach((entry, index) => {
+        errors.push(...validateSchema(schema.items, entry, `${path}[${index}]`));
+      });
+    }
+  }
+  if (schema.type === "object" && isPlainObject(value)) {
+    if (Array.isArray(schema.required)) {
+      schema.required.forEach((key) => {
+        if (!Object.prototype.hasOwnProperty.call(value, key)) {
+          errors.push(`${path}.required.${key}`);
+        }
+      });
+    }
+    const props = schema.properties || {};
+    Object.entries(props).forEach(([key, propSchema]) => {
+      if (Object.prototype.hasOwnProperty.call(value, key)) {
+        if (value[key] === undefined) {
+          return;
+        }
+        errors.push(...validateSchema(propSchema, value[key], `${path}.${key}`));
+      }
+    });
+    if (schema.additionalProperties === false) {
+      Object.keys(value).forEach((key) => {
+        if (!Object.prototype.hasOwnProperty.call(props, key)) {
+          errors.push(`${path}.additional.${key}`);
+        }
+      });
+    } else if (schema.additionalProperties && typeof schema.additionalProperties === "object") {
+      Object.keys(value).forEach((key) => {
+        if (!Object.prototype.hasOwnProperty.call(props, key)) {
+          errors.push(...validateSchema(schema.additionalProperties, value[key], `${path}.${key}`));
+        }
+      });
+    }
+  }
+  return errors;
+};
+
+const policySchema = {
+  schema_version: SCHEMA_VERSION,
+  type: "object",
+  properties: {
+    allowed_demand_types: { type: "array", items: { type: "string" } },
+    derived_value_floor: { type: "number" },
+    demand_priority: { type: "array", items: { type: "string" } },
+    selection_mode: { type: "string", enum: ["raw", "weighted"] },
+    floor_type: { type: "string", enum: ["raw", "weighted"] },
+    floor_value_per_1k: { type: "number" },
+    rev_share_bps: { type: "number" }
+  },
+  additionalProperties: true
+};
+
+const registrySchema = {
+  schema_version: SCHEMA_VERSION,
+  type: "object",
+  required: ["version", "advertisers", "publishers", "campaigns", "creatives", "policies"],
+  properties: {
+    version: { type: "integer" },
+    advertisers: {
+      type: "array",
+      minItems: 1,
+      items: {
+        type: "object",
+        required: ["advertiser_id", "campaign_ids"],
+        properties: {
+          advertiser_id: { type: "string" },
+          campaign_ids: { type: "array", items: { type: "string" } }
+        },
+        additionalProperties: true
+      }
+    },
+    publishers: {
+      type: "array",
+      minItems: 1,
+      items: {
+        type: "object",
+        required: ["publisher_id", "campaign_ids"],
+        properties: {
+          publisher_id: { type: "string" },
+          campaign_ids: { type: "array", items: { type: "string" } }
+        },
+        additionalProperties: true
+      }
+    },
+    campaigns: {
+      type: "array",
+      minItems: 1,
+      items: {
+        type: "object",
+        required: ["campaign_id", "publisher_id", "advertiser_id", "creative_ids"],
+        properties: {
+          campaign_id: { type: "string" },
+          publisher_id: { type: "string" },
+          advertiser_id: { type: "string" },
+          creative_ids: { type: "array", items: { type: "string" } },
+          outcome_weights: { type: "object", additionalProperties: { type: "number" } },
+          caps: {
+            type: "object",
+            properties: {
+              max_outcomes: { type: "number" },
+              max_weighted_value: { type: "number" }
+            },
+            additionalProperties: true
+          },
+          publisher_rev_share_bps: { type: "number" }
+        },
+        additionalProperties: true
+      }
+    },
+    creatives: {
+      type: "array",
+      minItems: 1,
+      items: {
+        type: "object",
+        required: ["creative_id", "creative_url", "sizes"],
+        properties: {
+          creative_id: { type: "string" },
+          creative_url: { type: "string" },
+          sizes: { type: "array", items: { type: "string" } },
+          demand_type: { type: "string" }
+        },
+        additionalProperties: true
+      }
+    },
+    policies: {
+      type: "object",
+      additionalProperties: policySchema
+    }
+  },
+  additionalProperties: true
+};
+
+const keysSchema = {
+  schema_version: SCHEMA_VERSION,
+  type: "object",
+  required: ["version", "publishers", "advertisers"],
+  properties: {
+    version: { type: "integer" },
+    publishers: {
+      type: "array",
+      items: {
+        type: "object",
+        required: ["publisher_id", "api_key"],
+        properties: {
+          publisher_id: { type: "string" },
+          api_key: { type: "string" }
+        },
+        additionalProperties: true
+      }
+    },
+    advertisers: {
+      type: "array",
+      items: {
+        type: "object",
+        required: ["advertiser_id", "api_key"],
+        properties: {
+          advertiser_id: { type: "string" },
+          api_key: { type: "string" }
+        },
+        additionalProperties: true
+      }
+    }
+  },
+  additionalProperties: true
+};
+
+const eventSchema = {
+  schema_version: SCHEMA_VERSION,
+  type: "object",
+  required: ["seq", "event_id", "ts", "type", "payload"],
+  properties: {
+    seq: { type: "integer" },
+    event_id: { type: "string" },
+    ts: { type: "string" },
+    type: { type: "string" },
+    payload: { type: "object" }
+  },
+  additionalProperties: true
+};
+
+const deliveryStateSchema = {
+  schema_version: SCHEMA_VERSION,
+  type: "object",
+  required: ["last_delivered_seq"],
+  properties: {
+    last_delivered_seq: { type: "integer" },
+    updated_at: { type: "string" }
+  },
+  additionalProperties: true
+};
+
+const tokenSchema = {
+  schema_version: SCHEMA_VERSION,
+  type: "object",
+  required: ["token_id", "scope"],
+  properties: {
+    token_id: { type: "string" },
+    scope: {
+      type: "object",
+      required: ["campaign_id", "publisher_id", "creative_id"],
+      properties: {
+        campaign_id: { type: "string" },
+        publisher_id: { type: "string" },
+        creative_id: { type: "string" }
+      },
+      additionalProperties: true
+    }
+  },
+  additionalProperties: true
+};
+
+const ledgerEntrySchema = {
+  schema_version: SCHEMA_VERSION,
+  type: "object",
+  required: [
+    "entry_id",
+    "created_at",
+    "token_id",
+    "campaign_id",
+    "advertiser_id",
+    "publisher_id",
+    "creative_id",
+    "window_id",
+    "outcome_type",
+    "raw_value",
+    "weighted_value",
+    "billable",
+    "payout_cents",
+    "rev_share_bps",
+    "final_stage"
+  ],
+  properties: {
+    entry_id: { type: "string" },
+    created_at: { type: "string" },
+    token_id: { type: "string" },
+    campaign_id: { type: "string" },
+    advertiser_id: { type: "string" },
+    publisher_id: { type: "string" },
+    creative_id: { type: "string" },
+    window_id: { type: "string" },
+    outcome_type: { type: "string" },
+    raw_value: { type: "number" },
+    weighted_value: { type: "number" },
+    billable: { type: "boolean" },
+    payout_cents: { type: "number" },
+    rev_share_bps: { type: "number" },
+    final_stage: { type: "string" }
+  },
+  additionalProperties: true
+};
+
+const eventPayloadSchemas = {
+  "intent.created": {
+    schema_version: SCHEMA_VERSION,
+    type: "object",
+    required: ["token"],
+    properties: {
+      token: tokenSchema
+    },
+    additionalProperties: true
+  },
+  "impression.recorded": {
+    schema_version: SCHEMA_VERSION,
+    type: "object",
+    required: ["scope", "occurred_at"],
+    properties: {
+      scope: tokenSchema.properties.scope,
+      occurred_at: { type: "string" }
+    },
+    additionalProperties: true
+  },
+  "resolution.partial": {
+    schema_version: SCHEMA_VERSION,
+    type: "object",
+    required: ["token_id", "stage", "resolved_at", "resolved_value"],
+    properties: {
+      token_id: { type: "string" },
+      stage: { type: "string" },
+      resolved_at: { type: "string" },
+      resolved_value: { type: "number" },
+      outcome_type: { type: ["string", "null"] }
+    },
+    additionalProperties: true
+  },
+  "resolution.final": {
+    schema_version: SCHEMA_VERSION,
+    type: "object",
+    required: ["token_id", "stage", "resolved_at", "resolved_value", "outcome_type", "weighted_value", "billable"],
+    properties: {
+      token_id: { type: "string" },
+      stage: { type: "string" },
+      resolved_at: { type: "string" },
+      resolved_value: { type: "number" },
+      outcome_type: { type: "string" },
+      weighted_value: { type: "number" },
+      billable: { type: "boolean" }
+    },
+    additionalProperties: true
+  },
+  "budget.decrement": {
+    schema_version: SCHEMA_VERSION,
+    type: "object",
+    required: ["token_id", "campaign_id", "amount"],
+    properties: {
+      token_id: { type: "string" },
+      campaign_id: { type: "string" },
+      amount: { type: "number" }
+    },
+    additionalProperties: true
+  },
+  "ledger.append": {
+    schema_version: SCHEMA_VERSION,
+    type: "object",
+    required: ["entry"],
+    properties: {
+      entry: ledgerEntrySchema
+    },
+    additionalProperties: true
+  },
+  "window.reset": {
+    schema_version: SCHEMA_VERSION,
+    type: "object",
+    properties: {
+      reason: { type: "string" },
+      previous_window: { type: "object", additionalProperties: true },
+      new_window: { type: "object", additionalProperties: true }
+    },
+    additionalProperties: true
+  }
+};
+
+const reportRowSchema = {
+  schema_version: SCHEMA_VERSION,
+  type: "object",
+  required: [
+    "campaign_id",
+    "publisher_id",
+    "creative_id",
+    "impressions",
+    "intents",
+    "resolvedIntents",
+    "intent_rate",
+    "resolution_rate",
+    "derived_value_per_1k"
+  ],
+  properties: {
+    campaign_id: { type: "string" },
+    publisher_id: { type: "string" },
+    creative_id: { type: "string" },
+    impressions: { type: "number" },
+    intents: { type: "number" },
+    resolvedIntents: { type: "number" },
+    intent_rate: { type: "number" },
+    resolution_rate: { type: "number" },
+    derived_value_per_1k: { type: "number" }
+  },
+  additionalProperties: true
+};
+
+const reportSchema = {
+  schema_version: SCHEMA_VERSION,
+  type: "object",
+  required: [
+    "aggregates",
+    "publisher_floor",
+    "last_window_observed",
+    "publisher_caps",
+    "last_window_billable",
+    "ledger_stats",
+    "selection_decisions"
+  ],
+  properties: {
+    aggregates: { type: "array", items: reportRowSchema },
+    publisher_floor: {
+      type: ["object", "null"],
+      properties: {
+        selection_mode: { type: "string" },
+        floor_type: { type: "string" },
+        floor_value_per_1k: { type: "number" }
+      },
+      additionalProperties: true
+    },
+    last_window_observed: {
+      type: ["object", "null"],
+      properties: {
+        window_id: { type: ["string", "null"] },
+        impressions: { type: "number" },
+        raw_value_per_1k: { type: "number" },
+        weighted_value_per_1k: { type: "number" }
+      },
+      additionalProperties: true
+    },
+    publisher_caps: {
+      type: ["array", "null"],
+      items: {
+        type: "object",
+        required: ["campaign_id", "advertiser_id", "caps"],
+        properties: {
+          campaign_id: { type: "string" },
+          advertiser_id: { type: ["string", "null"] },
+          caps: { type: ["object", "null"], additionalProperties: true }
+        },
+        additionalProperties: true
+      }
+    },
+    last_window_billable: {
+      type: ["object", "null"],
+      properties: {
+        window_id: { type: ["string", "null"] },
+        billable_count: { type: "number" },
+        non_billable_count: { type: "number" }
+      },
+      additionalProperties: true
+    },
+    ledger_stats: {
+      type: ["object", "null"],
+      properties: {
+        window_id: { type: ["string", "null"] },
+        window_payout_cents: { type: "number" },
+        lifetime_payout_cents: { type: "number" },
+        window_entries: { type: "number" },
+        lifetime_entries: { type: "number" }
+      },
+      additionalProperties: true
+    },
+    selection_decisions: {
+      type: ["array", "null"],
+      items: {
+        type: "object",
+        required: ["timestamp", "publisher_id", "selection_mode", "metric_used", "candidates", "chosen_creative"],
+        properties: {
+          timestamp: { type: "string" },
+          publisher_id: { type: "string" },
+          selection_mode: { type: "string" },
+          metric_used: { type: "string" },
+          candidates: {
+            type: "array",
+            items: {
+              type: "object",
+              required: ["campaign_id", "creative_id", "demand_type", "used_metric", "used_value_per_1k"],
+              properties: {
+                campaign_id: { type: "string" },
+                creative_id: { type: "string" },
+                demand_type: { type: "string" },
+                used_metric: { type: "string" },
+                used_value_per_1k: { type: "number" }
+              },
+              additionalProperties: true
+            }
+          },
+          chosen_creative: {
+            type: "object",
+            required: ["campaign_id", "creative_id", "demand_type"],
+            properties: {
+              campaign_id: { type: "string" },
+              creative_id: { type: "string" },
+              demand_type: { type: "string" }
+            },
+            additionalProperties: true
+          }
+        },
+        additionalProperties: true
+      }
+    }
+  },
+  additionalProperties: true
+};
+
+console.log("process.role", { role: PROCESS_ROLE, source: resolvedRole ? "env" : "derived" });
+console.log("process.write_capability", { write_enabled: WRITE_ENABLED });
+console.log("process.startup", {
+  role: PROCESS_ROLE,
+  write_enabled: WRITE_ENABLED,
+  event_authority: WRITE_ENABLED ? "writer" : "read_only"
+});
+console.log("process.webhook", { enabled: Boolean(WEBHOOK_URL), url: WEBHOOK_URL || null });
+
+const rejectWrites = (res, endpoint, reason = "write_disabled") => {
+  console.log("write.disabled", { endpoint, reason });
+  sendJson(res, 503, { error: "write_disabled" });
 };
 
 const createBlockingMutex = () => new Int32Array(new SharedArrayBuffer(4));
@@ -608,6 +1170,141 @@ const writeJsonFile = (filePath, payload) => {
   fs.writeFileSync(filePath, `${JSON.stringify(payload, null, 2)}\n`);
 };
 
+const loadDeliveryState = () => {
+  const payload = readJsonFile(deliveryStateFile);
+  if (!payload) {
+    deliveryState = { last_delivered_seq: 0 };
+    writeJsonFile(deliveryStateFile, { last_delivered_seq: 0, updated_at: new Date().toISOString() });
+    return;
+  }
+  const schemaErrors = validateSchema(deliveryStateSchema, payload, "$");
+  if (schemaErrors.length > 0 || !Number.isFinite(payload.last_delivered_seq)) {
+    logSchemaErrors("delivery_state", schemaErrors.length ? schemaErrors : ["last_delivered_seq.invalid"], {
+      path: deliveryStateFile
+    });
+    deliveryState = { last_delivered_seq: 0 };
+    writeJsonFile(deliveryStateFile, { last_delivered_seq: 0, updated_at: new Date().toISOString() });
+    return;
+  }
+  deliveryState = { last_delivered_seq: payload.last_delivered_seq };
+};
+
+const saveDeliveryState = () => {
+  writeJsonFile(deliveryStateFile, {
+    last_delivered_seq: deliveryState.last_delivered_seq,
+    updated_at: new Date().toISOString()
+  });
+};
+
+const resolveDeliveryIndex = () => {
+  if (!events.length) {
+    deliveryCursorIndex = 0;
+    return;
+  }
+  const idx = events.findIndex((event) => event.seq > deliveryState.last_delivered_seq);
+  deliveryCursorIndex = idx === -1 ? events.length : idx;
+};
+
+const nextDeliverableEvent = () => {
+  for (let i = deliveryCursorIndex; i < events.length; i += 1) {
+    const event = events[i];
+    if (event.seq <= deliveryState.last_delivered_seq) {
+      deliveryCursorIndex = i + 1;
+      continue;
+    }
+    if (event.type === "resolution.final") {
+      deliveryCursorIndex = i;
+      return event;
+    }
+  }
+  deliveryCursorIndex = events.length;
+  return null;
+};
+
+const postWebhook = async (payload) => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), WEBHOOK_TIMEOUT_MS);
+  try {
+    const response = await fetch(WEBHOOK_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    });
+    return { ok: response.ok, status: response.status };
+  } catch (error) {
+    return { ok: false, status: 0, error: error.message };
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
+const scheduleDeliveryTick = (delayMs = 250) => {
+  setTimeout(() => {
+    void processWebhookDelivery();
+  }, delayMs);
+};
+
+const processWebhookDelivery = async () => {
+  if (!WEBHOOK_URL) {
+    return;
+  }
+  if (!WRITE_ENABLED) {
+    return;
+  }
+  if (process.env.REBUILD_FROM_EVENTS === "true") {
+    console.log("webhook.delivery.skip", { reason: "rebuild_mode" });
+    return;
+  }
+  if (deliveryInFlight) {
+    return;
+  }
+  if (Date.now() < deliveryNextAttemptAt) {
+    scheduleDeliveryTick(250);
+    return;
+  }
+  const nextEvent = nextDeliverableEvent();
+  if (!nextEvent) {
+    scheduleDeliveryTick(500);
+    return;
+  }
+  deliveryInFlight = true;
+  const payload = {
+    delivery_ts: new Date().toISOString(),
+    seq: nextEvent.seq,
+    event_id: nextEvent.event_id,
+    type: nextEvent.type,
+    ts: nextEvent.ts,
+    payload: nextEvent.payload
+  };
+  const result = await postWebhook(payload);
+  if (result.ok) {
+    deliveryState.last_delivered_seq = nextEvent.seq;
+    saveDeliveryState();
+    deliveryRetryCount = 0;
+    deliveryNextAttemptAt = 0;
+    console.log("webhook.delivery.success", {
+      seq: nextEvent.seq,
+      event_id: nextEvent.event_id,
+      status: result.status
+    });
+    deliveryCursorIndex += 1;
+  } else {
+    deliveryRetryCount += 1;
+    const delay = Math.min(WEBHOOK_RETRY_BASE_MS * 2 ** (deliveryRetryCount - 1), WEBHOOK_RETRY_MAX_MS);
+    deliveryNextAttemptAt = Date.now() + delay;
+    console.log("webhook.delivery.fail", {
+      seq: nextEvent.seq,
+      event_id: nextEvent.event_id,
+      status: result.status || 0,
+      error: result.error || null,
+      retry_in_ms: delay
+    });
+  }
+  deliveryInFlight = false;
+  scheduleDeliveryTick(0);
+};
+
 const validateRegistry = (registry) => {
   const errors = [];
   if (!registry || typeof registry !== "object") {
@@ -670,6 +1367,31 @@ const validateKeys = (keysPayload) => {
   return errors;
 };
 
+const logSchemaErrors = (label, errors, details = {}) => {
+  console.error("schema.validate.failed", { schema: label, schema_version: SCHEMA_VERSION, errors, ...details });
+};
+
+const validateEventEntry = (entry, context = "event.validate") => {
+  const errors = validateSchema(eventSchema, entry, "$");
+  if (!errors.length) {
+    const payloadSchema = eventPayloadSchemas[entry.type];
+    if (!payloadSchema) {
+      errors.push(`$.type.unknown:${entry.type}`);
+    } else {
+      errors.push(...validateSchema(payloadSchema, entry.payload, "$.payload"));
+    }
+  }
+  if (errors.length > 0) {
+    console.log("event.schema.invalid", {
+      context,
+      type: entry.type,
+      seq: entry.seq,
+      errors
+    });
+  }
+  return errors;
+};
+
 const migrateByVersion = (payload, fromVersion, toVersion, migrations, label) => {
   if (fromVersion > toVersion) {
     console.error("migrate.version.unsupported", { label, from: fromVersion, to: toVersion });
@@ -717,6 +1439,11 @@ const loadRegistry = () => {
   }
   const version = typeof registry.version === "number" ? registry.version : 0;
   const migrated = migrateByVersion(registry, version, REGISTRY_VERSION, registryMigrations, "registry");
+  const schemaErrors = validateSchema(registrySchema, migrated, "$");
+  if (schemaErrors.length > 0) {
+    logSchemaErrors("registry", schemaErrors, { path: registryFile });
+    process.exit(1);
+  }
   const errors = validateRegistry(migrated);
   if (errors.length > 0) {
     console.error("registry.validate.failed", { errors });
@@ -935,6 +1662,11 @@ const loadKeys = () => {
   }
   const version = typeof payload.version === "number" ? payload.version : 0;
   const migrated = migrateByVersion(payload, version, KEYS_VERSION, keysMigrations, "keys");
+  const schemaErrors = validateSchema(keysSchema, migrated, "$");
+  if (schemaErrors.length > 0) {
+    logSchemaErrors("keys", schemaErrors, { path: keysFile });
+    process.exit(1);
+  }
   const errors = validateKeys(migrated);
   if (errors.length > 0) {
     console.error("keys.validate.failed", { errors });
@@ -1573,7 +2305,12 @@ const loadEvents = () => {
       if (entry.event_id) {
         seenIds.add(entry.event_id);
       }
-      parsed.push(entry);
+        const entryErrors = validateEventEntry(entry, "events.load");
+        if (entryErrors.length > 0) {
+          logSchemaErrors("event", entryErrors, { path: eventsFile, line: i + 1 });
+          process.exit(1);
+        }
+        parsed.push(entry);
     } catch (error) {
       if (i === lines.length - 1 && process.env.ALLOW_EVENT_TRUNCATION === "true") {
         console.log("events.truncate", { reason: "malformed_last_line" });
@@ -1585,15 +2322,15 @@ const loadEvents = () => {
       process.exit(1);
     }
   }
-  events = parsed.sort((a, b) => a.seq - b.seq);
+    events = parsed.sort((a, b) => a.seq - b.seq);
   const lastSeq = events.length > 0 ? events[events.length - 1].seq : 0;
   if (eventState.last_seq !== lastSeq) {
     console.log("event_state.mismatch", { file_seq: lastSeq, state_seq: eventState.last_seq });
     eventState.last_seq = lastSeq;
     saveEventState();
   }
-  console.log("events.load.ok", { entries: events.length });
-};
+    console.log("events.load.ok", { entries: events.length });
+  };
 
 const loadProjectionState = () => {
   const payload = readJsonFile(projectionStateFile);
@@ -1696,16 +2433,21 @@ const appendEventBatch = (batch, context = "event.batch") => {
     return null;
   }
   let fd = null;
-  try {
-    const startSeq = eventState.last_seq + 1;
-    const entries = batch.map((entry, index) => ({
-      seq: startSeq + index,
-      event_id: entry.event_id || randomUUID(),
-      ts: new Date().toISOString(),
-      type: entry.type,
-      payload: entry.payload
-    }));
-    let duplicateFound = false;
+    try {
+      const startSeq = eventState.last_seq + 1;
+      const entries = batch.map((entry, index) => ({
+        seq: startSeq + index,
+        event_id: entry.event_id || randomUUID(),
+        ts: new Date().toISOString(),
+        type: entry.type,
+        payload: entry.payload
+      }));
+      const schemaFailures = entries.flatMap((entry) => validateEventEntry(entry, context));
+      if (schemaFailures.length > 0) {
+        logSchemaErrors("event", schemaFailures, { context });
+        return null;
+      }
+      let duplicateFound = false;
     entries.forEach((entry) => {
       if (eventIdIndex.has(entry.event_id)) {
         console.log("event.dedupe.hit", { event_id: entry.event_id, seq: entry.seq });
@@ -1752,14 +2494,17 @@ const appendEventBatch = (batch, context = "event.batch") => {
       });
       return null;
     }
-    eventState.last_seq = startSeq + entries.length - 1;
-    saveEventState();
-    events.push(...entries);
-    entries.forEach((entry) => eventIdIndex.add(entry.event_id));
-    persistEventIndex();
-    if (eventState.last_seq % EVENT_SNAPSHOT_INTERVAL === 0) {
-      writeSnapshot(eventState.last_seq);
-    }
+      eventState.last_seq = startSeq + entries.length - 1;
+      saveEventState();
+      events.push(...entries);
+      if (deliveryCursorIndex >= events.length - entries.length) {
+        deliveryCursorIndex = Math.max(0, events.length - entries.length);
+      }
+      entries.forEach((entry) => eventIdIndex.add(entry.event_id));
+      persistEventIndex();
+      if (eventState.last_seq % EVENT_SNAPSHOT_INTERVAL === 0) {
+        writeSnapshot(eventState.last_seq);
+      }
     return entries;
   } catch (error) {
     if (error) {
@@ -2639,7 +3384,7 @@ const reconcileCampaigns = (tokensSnapshot) => {
       .reduce((sum, entry) => sum + (Number.isFinite(entry.sum) ? entry.sum : 0), 0);
 
     let tokenSumWindow = 0;
-    let tokenSumTotal = 0;
+    let tokenSumBillableTotal = 0;
     tokensSnapshot.forEach((token) => {
       if (!token.scope || token.scope.campaign_id !== campaign.campaign_id) {
         return;
@@ -2649,7 +3394,9 @@ const reconcileCampaigns = (tokensSnapshot) => {
         return;
       }
       const value = Number.isFinite(finalEvent.resolved_value) ? finalEvent.resolved_value : 0;
-      tokenSumTotal += value;
+      if (token.billable === true) {
+        tokenSumBillableTotal += value;
+      }
       const resolvedAtMs = new Date(finalEvent.resolved_at).getTime();
       if (resolvedAtMs >= windowStartMs && resolvedAtMs < windowEndMs) {
         tokenSumWindow += value;
@@ -2657,12 +3404,13 @@ const reconcileCampaigns = (tokensSnapshot) => {
     });
 
     const aggregateMismatch = Math.abs(tokenSumWindow - aggregateSum) > RECONCILIATION_TOLERANCE;
-    const budgetMismatch = Math.abs(tokenSumTotal - budgetDelta) > RECONCILIATION_TOLERANCE;
+    const budgetMismatch = Math.abs(tokenSumBillableTotal - budgetDelta) > RECONCILIATION_TOLERANCE;
     const logPayload = {
       campaign_id: campaign.campaign_id,
       advertiser_id: campaign.advertiser_id || null,
       window_id: aggregationWindow.started_at,
       token_sum: tokenSumWindow,
+      billable_token_sum: tokenSumBillableTotal,
       aggregate_sum: aggregateSum,
       budget_delta: budgetDelta,
       tolerance: RECONCILIATION_TOLERANCE
@@ -2747,17 +3495,19 @@ const normalizeTokens = (storedTokens) => storedTokens.map(normalizeToken);
 
 loadRegistry();
 loadKeys();
-loadBudgets();
-loadAggregates();
-loadLedger();
-loadEvents();
-const eventIndexLoaded = loadEventIndex();
-loadProjectionState();
-verifyEventIntegrity();
-console.log("aggregate.window.start", {
-  window_start: aggregationWindow.started_at,
-  window_ms: AGGREGATION_WINDOW_MS
-});
+  loadBudgets();
+  loadAggregates();
+  loadLedger();
+  loadEvents();
+  loadDeliveryState();
+  resolveDeliveryIndex();
+  const eventIndexLoaded = loadEventIndex();
+  loadProjectionState();
+  verifyEventIntegrity();
+  console.log("aggregate.window.start", {
+    window_start: aggregationWindow.started_at,
+    window_ms: AGGREGATION_WINDOW_MS
+  });
 if (!eventIndexLoaded) {
   rebuildEventIndex();
 }
@@ -2795,8 +3545,19 @@ if (rebuildFromEventsEnabled) {
   const unapplied = events.filter((event) => event.seq > projectionCursor.applied_seq);
   applyProjectionEvents(unapplied, "startup");
 }
-reconcileCampaigns(projectionState.tokens);
-reconcileLedger(projectionState.tokens);
+  reconcileCampaigns(projectionState.tokens);
+  reconcileLedger(projectionState.tokens);
+
+  if (WEBHOOK_URL) {
+    if (!WRITE_ENABLED) {
+      console.log("webhook.delivery.skip", { reason: "write_disabled" });
+    } else if (process.env.REBUILD_FROM_EVENTS === "true") {
+      console.log("webhook.delivery.skip", { reason: "rebuild_mode" });
+    } else {
+      console.log("webhook.delivery.start", { url: WEBHOOK_URL, last_delivered_seq: deliveryState.last_delivered_seq });
+      scheduleDeliveryTick(0);
+    }
+  }
 
 const findToken = (tokenId) => tokenIndex.get(tokenId);
 
@@ -2972,6 +3733,10 @@ const handleFill = async (req, res) => {
 };
 
 const handleIntent = async (req, res) => {
+  if (!WRITE_ENABLED) {
+    rejectWrites(res, "/v1/intent");
+    return;
+  }
   let body;
   try {
     body = await readJsonBody(req);
@@ -3091,6 +3856,10 @@ const handleIntent = async (req, res) => {
 };
 
 const handlePostback = (req, url, res) => {
+  if (!WRITE_ENABLED) {
+    rejectWrites(res, "/v1/postback");
+    return;
+  }
   const tokenId = url.searchParams.get("token_id");
   const value = url.searchParams.get("value");
   const stage = (url.searchParams.get("stage") || "resolved").toLowerCase();
@@ -3403,6 +4172,13 @@ const server = http.createServer(async (req, res) => {
         }
         const includeSelections = url.searchParams.get("include_selections") === "true";
         const report = withProjectionRead("reports.view", () => getReportingView(projectionState, publisherId));
+        const reportErrors = validateSchema(reportSchema, report, "$");
+        if (reportErrors.length > 0) {
+          console.log("report.schema.invalid", {
+            publisher_id: publisherId,
+            errors: reportErrors
+          });
+        }
         if (!includeSelections) {
           const { selection_decisions: _ignored, ...rest } = report;
           sendJson(res, 200, { reports: rest });
@@ -3412,12 +4188,12 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
-    if (req.method === "GET") {
-      const requestedPath = url.pathname === "/" ? "/index.html" : url.pathname;
-      const filePath = path.join(publicDir, requestedPath);
-      serveStatic(res, filePath);
-      return;
-    }
+      if (req.method === "GET") {
+        const requestedPath = url.pathname === "/" ? "/index.html" : url.pathname;
+        const filePath = path.join(publicDir, requestedPath);
+        serveStatic(res, filePath);
+        return;
+      }
 
     res.writeHead(405, { "Content-Type": "text/plain" });
     res.end("Method not allowed");

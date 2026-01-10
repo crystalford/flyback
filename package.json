@@ -8,6 +8,8 @@
   "scripts": {
     "start": "node server.js",
     "test": "node --test",
-    "test:stress": "node scripts/stress.js"
+    "test:stress": "node scripts/stress.js",
+    "webhook:sink": "node scripts/webhook_sink.js",
+    "webhook:replay": "node scripts/replay_webhook.js"
   }
 }

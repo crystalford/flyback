@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Flyback Ops</title>
+    <link rel="stylesheet" href="/ops.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="hero">
+        <p class="eyebrow">Flyback V4 Ops</p>
+        <h1>Read-Only Control Room</h1>
+        <p class="subhead">Live aggregates and delivery insight from the active writer.</p>
+      </header>
+
+      <section class="panel">
+        <div class="row">
+          <label class="label" for="apiKey">Publisher API Key</label>
+          <input id="apiKey" type="password" placeholder="demo-publisher-key" />
+          <button id="saveKey" class="btn">Save</button>
+          <button id="refresh" class="btn ghost">Refresh</button>
+        </div>
+        <div class="row meta">
+          <span id="status">Idle</span>
+          <span id="lastUpdated">—</span>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="card">
+          <h2>Aggregates</h2>
+          <div id="aggregates" class="table"></div>
+        </div>
+        <div class="card">
+          <h2>Ledger</h2>
+          <div id="ledger" class="table"></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Selections</h2>
+        <div id="selections" class="table"></div>
+      </section>
+    </main>
+
+    <script type="module" src="/ops.js"></script>
+  </body>
+</html>
