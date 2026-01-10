@@ -1,0 +1,11 @@
+{
+  "name": "flyback",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Flyback V1 intent capture reference implementation",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  }
+}
