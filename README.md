@@ -389,6 +389,10 @@ The server logs explicitly distinguish token lifecycle transitions:
 - `postback.expired` → expiry enforced
 - `postback.idempotent` → duplicate or late postback acknowledged
 
+For development inspection, `GET /v1/reports` returns the current in-memory aggregate metrics (read-only, reset on restart).
+
+The fill path now includes a minimal creative selection hook and a small in-memory registry, so V1 structurally supports multiple creatives while still serving a single selected creative.
+
 No dashboards, routing, or multi-demand logic is implemented in this V1 demo.
 
 ## 17. Deployment

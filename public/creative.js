@@ -1,18 +1,88 @@
 const DEFAULT_DWELL_MS = 2000;
 
-const postIntent = async ({ campaignId, publisherId, creativeId, intentType, dwellSeconds, interactionCount }) => {
+const isNonEmptyString = (value) => typeof value === "string" && value.trim().length > 0;
+
+const normalizeIntentPayload = (payload) => {
+  if (!payload || typeof payload !== "object") {
+    throw new Error("Invalid intent payload");
+  }
+  const {
+    campaignId,
+    publisherId,
+    creativeId,
+    intentType,
+    dwellSeconds,
+    interactionCount,
+    parentIntentId = null
+  } = payload;
+
+  if (!isNonEmptyString(campaignId)) {
+    throw new Error("Invalid campaign_id");
+  }
+  if (!isNonEmptyString(publisherId)) {
+    throw new Error("Invalid publisher_id");
+  }
+  if (!isNonEmptyString(creativeId)) {
+    throw new Error("Invalid creative_id");
+  }
+  if (!isNonEmptyString(intentType)) {
+    throw new Error("Invalid intent_type");
+  }
+  if (parentIntentId !== null && parentIntentId !== undefined && !isNonEmptyString(parentIntentId)) {
+    throw new Error("Invalid parent_intent_id");
+  }
+
+  const normalizedDwellSeconds = Number(dwellSeconds);
+  if (!Number.isFinite(normalizedDwellSeconds) || normalizedDwellSeconds < 0) {
+    throw new Error("Invalid dwell_seconds");
+  }
+  const normalizedInteractionCount = Number(interactionCount);
+  if (!Number.isFinite(normalizedInteractionCount) || normalizedInteractionCount < 0) {
+    throw new Error("Invalid interaction_count");
+  }
+
+  return {
+    campaignId: campaignId.trim(),
+    publisherId: publisherId.trim(),
+    creativeId: creativeId.trim(),
+    intentType: intentType.trim(),
+    dwellSeconds: normalizedDwellSeconds,
+    interactionCount: normalizedInteractionCount,
+    parentIntentId
+  };
+};
+
+const postIntent = async ({
+  campaignId,
+  publisherId,
+  creativeId,
+  intentType,
+  dwellSeconds,
+  interactionCount,
+  parentIntentId = null
+}) => {
+  const normalized = normalizeIntentPayload({
+    campaignId,
+    publisherId,
+    creativeId,
+    intentType,
+    dwellSeconds,
+    interactionCount,
+    parentIntentId
+  });
   const response = await fetch("/v1/intent", {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      campaign_id: campaignId,
-      publisher_id: publisherId,
-      creative_id: creativeId,
-      intent_type: intentType,
-      dwell_seconds: dwellSeconds,
-      interaction_count: interactionCount
+      campaign_id: normalized.campaignId,
+      publisher_id: normalized.publisherId,
+      creative_id: normalized.creativeId,
+      intent_type: normalized.intentType,
+      dwell_seconds: normalized.dwellSeconds,
+      interaction_count: normalized.interactionCount,
+      parent_intent_id: normalized.parentIntentId
     })
   });
 
@@ -23,8 +93,10 @@ const postIntent = async ({ campaignId, publisherId, creativeId, intentType, dwe
   return response.json();
 };
 
-const resolveToken = async (tokenId) => {
-  const response = await fetch(`/v1/postback?token_id=${encodeURIComponent(tokenId)}&value=10`);
+const resolveToken = async (tokenId, stage = "resolved", value = 10) => {
+  const response = await fetch(
+    `/v1/postback?token_id=${encodeURIComponent(tokenId)}&value=${encodeURIComponent(value)}&stage=${encodeURIComponent(stage)}`
+  );
 
   if (!response.ok) {
     throw new Error("Postback failed");
@@ -36,6 +108,28 @@ const resolveToken = async (tokenId) => {
 const formatSeconds = (ms) => Math.round(ms / 100) / 10;
 
 const mountCru = (root, config) => {
+  if (
+    !config ||
+    !isNonEmptyString(config.campaign_id) ||
+    !isNonEmptyString(config.publisher_id) ||
+    !isNonEmptyString(config.creative_id)
+  ) {
+    root.textContent = "Invalid creative config.";
+    return;
+  }
+
+  const creativeBehavior = (() => {
+    if (config.creative_id === "creative-v2" || config.creative_id === "creative-v5") {
+      return { intentType: "qualified", stages: ["lead", "purchase"], values: [2, 15] };
+    }
+    if (config.creative_id === "creative-v3") {
+      return { intentType: "affiliate_signup", stages: ["purchase"], values: [8] };
+    }
+    if (config.creative_id === "creative-v4") {
+      return { intentType: "demo_request", stages: ["lead"], values: [4] };
+    }
+    return { intentType: "qualified", stages: ["resolved"], values: [10] };
+  })();
   const status = document.createElement("div");
   status.style.marginBottom = "12px";
   status.style.fontSize = "14px";
@@ -46,7 +140,7 @@ const mountCru = (root, config) => {
   headline.style.marginBottom = "8px";
 
   const description = document.createElement("div");
-  description.textContent = "Engage to emit an intent token. Resolution will occur via deferred postback.";
+  description.textContent = `Engage to emit intent. Behavior: ${creativeBehavior.intentType} / ${creativeBehavior.stages.join(" → ")}.`;
   description.style.fontSize = "13px";
   description.style.color = "#57606a";
   description.style.marginBottom = "12px";
@@ -68,7 +162,9 @@ const mountCru = (root, config) => {
   let attentionQualified = false;
   let interactionCount = 0;
   let dwellStart = Date.now();
-  let tokenId = null;
+  let lastTokenId = null;
+  let emissionCount = 0;
+  let resolutionTimeoutId = null;
 
   status.textContent = "State: INITIALIZED";
 
@@ -97,19 +193,41 @@ const mountCru = (root, config) => {
         campaignId: config.campaign_id,
         publisherId: config.publisher_id,
         creativeId: config.creative_id,
-        intentType: attentionQualified ? "qualified" : "unqualified",
+        intentType: attentionQualified ? creativeBehavior.intentType : "unqualified",
         dwellSeconds,
-        interactionCount
+        interactionCount,
+        parentIntentId: lastTokenId
       });
 
-      tokenId = token.token_id;
-      status.textContent = "State: INTENT_EMITTED (pending resolution)";
-      button.textContent = "Intent emitted";
+      lastTokenId = token.token_id;
+      emissionCount += 1;
+      status.textContent = `State: INTENT_EMITTED (chain ${emissionCount})`;
+      button.textContent = "Intent emitted (waiting for resolution)";
 
-      window.setTimeout(async () => {
-        const postback = await resolveToken(tokenId);
-        status.textContent = `State: ${postback.token.status}`;
-        button.textContent = "Resolved";
+      const resolveStages = async () => {
+        let lastPostback = null;
+        for (let index = 0; index < creativeBehavior.stages.length; index += 1) {
+          const stage = creativeBehavior.stages[index];
+          const value = creativeBehavior.values[index] || 1;
+          lastPostback = await resolveToken(token.token_id, stage, value);
+          status.textContent = `State: ${lastPostback.token.status} (${stage})`;
+        }
+        return lastPostback;
+      };
+
+      resolutionTimeoutId = window.setTimeout(async () => {
+        try {
+          const postback = await resolveStages();
+          status.textContent = `State: ${postback.token.status} (chain ${emissionCount})`;
+          button.textContent = "Emit follow-up intent";
+        } catch (error) {
+          console.error(error);
+          status.textContent = "State: ERROR";
+          button.textContent = "Try again";
+        } finally {
+          resolutionTimeoutId = null;
+          button.disabled = false;
+        }
       }, 3000);
     } catch (error) {
       console.error(error);
@@ -128,6 +246,9 @@ const mountCru = (root, config) => {
   root.addEventListener("remove", () => {
     window.clearTimeout(attentionTimer);
     window.clearInterval(intervalId);
+    if (resolutionTimeoutId) {
+      window.clearTimeout(resolutionTimeoutId);
+    }
   });
 };
 
