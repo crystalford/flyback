@@ -603,6 +603,26 @@ To add a new migration:
 1. Start the server with `node server.js`.
 2. Open `http://localhost:3000`.
 
+### Docker quickstart
+
+1. `docker build -t flyback .`
+2. `docker run --rm -p 3000:3000 -e OPS_TOKEN_SECRET=change-me flyback`
+
+## 18. Environment Reference
+
+Required for public hosting:
+- `OPS_TOKEN_SECRET` (signing key for ops/advertiser access)
+
+Common:
+- `PORT` (default 3000)
+- `HOST` (default 0.0.0.0)
+- `WEBHOOK_URL` (enable delivery)
+- `WEBHOOK_SECRET` (enable webhook signing)
+- `WRITE_ENABLED` (writer vs replica)
+- `ROLE` or `FLYBACK_ROLE` (writer or replica)
+- `RATE_LIMIT_MAX` (default 120 per window)
+- `RATE_LIMIT_WINDOW_MS` (default 60000)
+- `RATE_LIMIT_BYPASS` (true to disable rate limiting)
 ### Hosted run assumptions
 
 - Provide a Node 18+ runtime with file system access for `data/tokens.json`.
