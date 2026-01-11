@@ -867,11 +867,12 @@
       },
       "system_status": {
         "type": "object",
-        "required": ["role", "write_enabled", "webhook_enabled"],
+        "required": ["role", "write_enabled", "webhook_enabled", "webhook_signature_enabled"],
         "properties": {
           "role": { "type": "string" },
           "write_enabled": { "type": "boolean" },
-          "webhook_enabled": { "type": "boolean" }
+          "webhook_enabled": { "type": "boolean" },
+          "webhook_signature_enabled": { "type": "boolean" }
         },
         "additionalProperties": true
       }

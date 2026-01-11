@@ -870,11 +870,12 @@ const reportSchema = {
     },
     system_status: {
       type: "object",
-      required: ["role", "write_enabled", "webhook_enabled"],
+      required: ["role", "write_enabled", "webhook_enabled", "webhook_signature_enabled"],
       properties: {
         role: { type: "string" },
         write_enabled: { type: "boolean" },
-        webhook_enabled: { type: "boolean" }
+        webhook_enabled: { type: "boolean" },
+        webhook_signature_enabled: { type: "boolean" }
       },
       additionalProperties: true
     }
@@ -2701,7 +2702,8 @@ const getReportingView = (state, publisherId) => {
     system_status: {
       role: PROCESS_ROLE,
       write_enabled: WRITE_ENABLED,
-      webhook_enabled: Boolean(WEBHOOK_URL)
+      webhook_enabled: Boolean(WEBHOOK_URL),
+      webhook_signature_enabled: Boolean(WEBHOOK_SECRET)
     }
   };
 };

@@ -30,6 +30,7 @@ const exportDeliveryEl = document.getElementById("exportDelivery");
 const exportPayoutsEl = document.getElementById("exportPayouts");
 const exportPayoutLinksEl = document.getElementById("exportPayoutLinks");
 const exportPublisherStatementEl = document.getElementById("exportPublisherStatement");
+const exportPublisherStatementJsonEl = document.getElementById("exportPublisherStatementJson");
 const payoutStatusFilterEl = document.getElementById("payoutStatusFilter");
 const payoutSortEl = document.getElementById("payoutSort");
 const publisherPolicyEl = document.getElementById("publisherPolicy");
@@ -282,10 +283,12 @@ const renderReport = (report) => {
     const created = run.created_at ? new Date(run.created_at).toLocaleString() : "-";
     const statusClass = run.status ? String(run.status).toLowerCase() : "pending";
     const updated = run.updated_at ? ` (updated ${new Date(run.updated_at).toLocaleDateString()})` : "";
+    const historyCount = Array.isArray(run.status_history) ? run.status_history.length : 0;
+    const historyLabel = historyCount > 0 ? ` | history: ${historyCount}` : "";
     return `
       <div class="row">
         <span>${run.publisher_id} - ${run.window_id}</span>
-        <span>${run.payout_cents} cents <span class="pill ${statusClass}">${run.status}</span></span>
+        <span>${run.payout_cents} cents <span class="pill ${statusClass}">${run.status}</span>${historyLabel}</span>
         <span>${created}${updated}</span>
       </div>
     `;
@@ -343,7 +346,8 @@ const renderReport = (report) => {
   const systemRows = [
     { label: "Role", value: report.system_status?.role ?? "unknown" },
     { label: "Write enabled", value: String(report.system_status?.write_enabled ?? false) },
-    { label: "Webhook enabled", value: String(report.system_status?.webhook_enabled ?? false) }
+    { label: "Webhook enabled", value: String(report.system_status?.webhook_enabled ?? false) },
+    { label: "Webhook signing", value: String(report.system_status?.webhook_signature_enabled ?? false) }
   ];
   systemStatusEl.innerHTML = renderRows(systemRows, (row) => {
     return `<div class="row"><span>${row.label}</span><span>${row.value}</span></div>`;
@@ -566,6 +570,21 @@ exportPublisherStatementEl.addEventListener("click", () => {
   const link = document.createElement("a");
   link.href = url;
   link.download = "publisher_statement.csv";
+  link.click();
+  URL.revokeObjectURL(url);
+});
+
+exportPublisherStatementJsonEl.addEventListener("click", () => {
+  if (!currentReport?.publisher_statement) {
+    return;
+  }
+  const blob = new Blob([JSON.stringify(currentReport.publisher_statement, null, 2)], {
+    type: "application/json"
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "publisher_statement.json";
   link.click();
   URL.revokeObjectURL(url);
 });
