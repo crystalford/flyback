@@ -18,6 +18,7 @@ const payoutReconBadgeEl = document.getElementById("payoutReconBadge");
 const payoutSummaryEl = document.getElementById("payoutSummary");
 const payoutRunLinksEl = document.getElementById("payoutRunLinks");
 const publisherStatementEl = document.getElementById("publisherStatement");
+const deliveryPayloadExampleEl = document.getElementById("deliveryPayloadExample");
 const payoutSparkEl = document.getElementById("payoutSpark");
 const deliverySparkEl = document.getElementById("deliverySpark");
 const systemStatusEl = document.getElementById("systemStatus");
@@ -31,6 +32,7 @@ const exportPayoutsEl = document.getElementById("exportPayouts");
 const exportPayoutLinksEl = document.getElementById("exportPayoutLinks");
 const exportPublisherStatementEl = document.getElementById("exportPublisherStatement");
 const exportPublisherStatementJsonEl = document.getElementById("exportPublisherStatementJson");
+const copyDeliveryPayloadEl = document.getElementById("copyDeliveryPayload");
 const payoutStatusFilterEl = document.getElementById("payoutStatusFilter");
 const payoutSortEl = document.getElementById("payoutSort");
 const publisherPolicyEl = document.getElementById("publisherPolicy");
@@ -386,6 +388,17 @@ const renderReport = (report) => {
       : [],
     (row) => `<div class="row"><span>${row.label}</span><span>${row.value}</span></div>`
   );
+
+  if (deliveryPayloadExampleEl && !deliveryPayloadExampleEl.textContent.trim()) {
+    fetch("/schemas/delivery_payload.example.json")
+      .then((res) => (res.ok ? res.text() : ""))
+      .then((text) => {
+        if (text) {
+          deliveryPayloadExampleEl.textContent = text.trim();
+        }
+      })
+      .catch(() => {});
+  }
 };
 
 const exportAggregatesCsv = () => {
@@ -592,6 +605,27 @@ exportPublisherStatementJsonEl.addEventListener("click", () => {
   link.download = "publisher_statement.json";
   link.click();
   URL.revokeObjectURL(url);
+});
+
+copyDeliveryPayloadEl.addEventListener("click", async () => {
+  if (!deliveryPayloadExampleEl || !deliveryPayloadExampleEl.textContent.trim()) {
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(deliveryPayloadExampleEl.textContent);
+  } catch {
+    const range = document.createRange();
+    range.selectNodeContents(deliveryPayloadExampleEl);
+    const selection = window.getSelection();
+    if (selection) {
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+    document.execCommand("copy");
+    if (selection) {
+      selection.removeAllRanges();
+    }
+  }
 });
 
 refresh();

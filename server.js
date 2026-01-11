@@ -4940,6 +4940,7 @@ const server = http.createServer(async (req, res) => {
         if (
           url.pathname === "/ops.html" ||
           url.pathname.startsWith("/ops.") ||
+          url.pathname.startsWith("/schemas/") ||
           url.pathname === "/advertiser.html" ||
           url.pathname.startsWith("/advertiser.")
         ) {
