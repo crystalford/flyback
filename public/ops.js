@@ -19,6 +19,11 @@ const payoutSummaryEl = document.getElementById("payoutSummary");
 const payoutRunLinksEl = document.getElementById("payoutRunLinks");
 const publisherStatementEl = document.getElementById("publisherStatement");
 const deliveryPayloadExampleEl = document.getElementById("deliveryPayloadExample");
+const verifyPayloadEl = document.getElementById("verifyPayload");
+const verifySecretEl = document.getElementById("verifySecret");
+const verifySignatureEl = document.getElementById("verifySignature");
+const verifyButtonEl = document.getElementById("verifyButton");
+const verifyResultEl = document.getElementById("verifyResult");
 const payoutSparkEl = document.getElementById("payoutSpark");
 const deliverySparkEl = document.getElementById("deliverySpark");
 const systemStatusEl = document.getElementById("systemStatus");
@@ -281,25 +286,30 @@ const renderReport = (report) => {
     <span>Total payout: ${counts.totalCents} cents</span>
     <span>Filtered payout: ${filteredSum} cents</span>
   `;
-  payoutRunsEl.innerHTML = renderRows(payoutRows, (run) => {
-    const created = run.created_at ? new Date(run.created_at).toLocaleString() : "-";
-    const statusClass = run.status ? String(run.status).toLowerCase() : "pending";
-    const updated = run.updated_at ? ` (updated ${new Date(run.updated_at).toLocaleDateString()})` : "";
-    const historyCount = Array.isArray(run.status_history) ? run.status_history.length : 0;
-    const historyLabel = historyCount > 0 ? ` | history: ${historyCount}` : "";
-    const historyDetails = historyCount
-      ? run.status_history
-          .map((entry) => `${entry.status || "unknown"}@${entry.updated_at || "-"}`)
-          .join(" | ")
-      : "";
-    return `
-      <div class="row">
-        <span>${run.publisher_id} - ${run.window_id}</span>
-        <span title="${historyDetails}">${run.payout_cents} cents <span class="pill ${statusClass}">${run.status}</span>${historyLabel}</span>
-        <span>${created}${updated}</span>
-      </div>
-    `;
-  });
+  payoutRunsEl.innerHTML = payoutRows
+    .map((run) => {
+      const created = run.created_at ? new Date(run.created_at).toLocaleString() : "-";
+      const statusClass = run.status ? String(run.status).toLowerCase() : "pending";
+      const updated = run.updated_at ? ` (updated ${new Date(run.updated_at).toLocaleDateString()})` : "";
+      const history = Array.isArray(run.status_history) ? run.status_history : [];
+      const historyCount = history.length;
+      const historyLabel = historyCount > 0 ? ` | history: ${historyCount}` : "";
+      const historyDetails = historyCount
+        ? history.map((entry) => `${entry.status || "unknown"}@${entry.updated_at || "-"}`).join(" | ")
+        : "";
+      const historyRow = historyCount
+        ? `<div class="row note"><span>History: ${historyDetails}</span></div>`
+        : "";
+      return `
+        <div class="row">
+          <span>${run.publisher_id} - ${run.window_id}</span>
+          <span title="${historyDetails}">${run.payout_cents} cents <span class="pill ${statusClass}">${run.status}</span>${historyLabel}</span>
+          <span>${created}${updated}</span>
+        </div>
+        ${historyRow}
+      `;
+    })
+    .join("");
   payoutRunLinksEl.innerHTML = renderRows(report.payout_run_links || [], (link) => {
     return `
       <div class="row">
@@ -394,7 +404,11 @@ const renderReport = (report) => {
       .then((res) => (res.ok ? res.text() : ""))
       .then((text) => {
         if (text) {
-          deliveryPayloadExampleEl.textContent = text.trim();
+          const trimmed = text.trim();
+          deliveryPayloadExampleEl.textContent = trimmed;
+          if (verifyPayloadEl && !verifyPayloadEl.value.trim()) {
+            verifyPayloadEl.value = trimmed;
+          }
         }
       })
       .catch(() => {});
@@ -625,6 +639,40 @@ copyDeliveryPayloadEl.addEventListener("click", async () => {
     if (selection) {
       selection.removeAllRanges();
     }
+  }
+});
+
+verifyButtonEl.addEventListener("click", async () => {
+  if (!verifyPayloadEl || !verifySecretEl || !verifySignatureEl || !verifyResultEl) {
+    return;
+  }
+  verifyResultEl.textContent = "Verifying...";
+  const secret = verifySecretEl.value || "";
+  const signature = (verifySignatureEl.value || "").trim();
+  const payload = verifyPayloadEl.value || "";
+  if (!secret || !signature || !payload.trim()) {
+    verifyResultEl.textContent = "Missing payload, secret, or signature.";
+    return;
+  }
+  if (!window.crypto || !window.crypto.subtle) {
+    verifyResultEl.textContent = "Browser crypto unavailable.";
+    return;
+  }
+  try {
+    const encoder = new TextEncoder();
+    const key = await window.crypto.subtle.importKey(
+      "raw",
+      encoder.encode(secret),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"]
+    );
+    const sigBuffer = await window.crypto.subtle.sign("HMAC", key, encoder.encode(payload));
+    const hashArray = Array.from(new Uint8Array(sigBuffer));
+    const expected = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+    verifyResultEl.textContent = expected === signature ? "Signature OK." : "Signature mismatch.";
+  } catch (error) {
+    verifyResultEl.textContent = `Verify failed: ${error.message}`;
   }
 });
 

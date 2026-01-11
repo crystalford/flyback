@@ -270,25 +270,30 @@ const renderReport = (report) => {
     <span>Total payout: ${counts.totalCents} cents</span>
     <span>Filtered payout: ${filteredSum} cents</span>
   `;
-  payoutRunsEl.innerHTML = renderRows(payoutRows, (run) => {
-    const created = run.created_at ? new Date(run.created_at).toLocaleString() : "-";
-    const statusClass = run.status ? String(run.status).toLowerCase() : "pending";
-    const updated = run.updated_at ? ` (updated ${new Date(run.updated_at).toLocaleDateString()})` : "";
-    const historyCount = Array.isArray(run.status_history) ? run.status_history.length : 0;
-    const historyLabel = historyCount > 0 ? ` | history: ${historyCount}` : "";
-    const historyDetails = historyCount
-      ? run.status_history
-          .map((entry) => `${entry.status || "unknown"}@${entry.updated_at || "-"}`)
-          .join(" | ")
-      : "";
-    return `
-      <div class="row">
-        <span>${run.publisher_id} - ${run.window_id}</span>
-        <span title="${historyDetails}">${run.payout_cents} cents <span class="pill ${statusClass}">${run.status}</span>${historyLabel}</span>
-        <span>${created}${updated}</span>
-      </div>
-    `;
-  });
+  payoutRunsEl.innerHTML = payoutRows
+    .map((run) => {
+      const created = run.created_at ? new Date(run.created_at).toLocaleString() : "-";
+      const statusClass = run.status ? String(run.status).toLowerCase() : "pending";
+      const updated = run.updated_at ? ` (updated ${new Date(run.updated_at).toLocaleDateString()})` : "";
+      const history = Array.isArray(run.status_history) ? run.status_history : [];
+      const historyCount = history.length;
+      const historyLabel = historyCount > 0 ? ` | history: ${historyCount}` : "";
+      const historyDetails = historyCount
+        ? history.map((entry) => `${entry.status || "unknown"}@${entry.updated_at || "-"}`).join(" | ")
+        : "";
+      const historyRow = historyCount
+        ? `<div class="row note"><span>History: ${historyDetails}</span></div>`
+        : "";
+      return `
+        <div class="row">
+          <span>${run.publisher_id} - ${run.window_id}</span>
+          <span title="${historyDetails}">${run.payout_cents} cents <span class="pill ${statusClass}">${run.status}</span>${historyLabel}</span>
+          <span>${created}${updated}</span>
+        </div>
+        ${historyRow}
+      `;
+    })
+    .join("");
   const links = report.payout_run_links || [];
   const advertiserIds = new Set(
     (report.invoice_drafts || []).map((draft) => draft.advertiser_id).filter((id) => id)

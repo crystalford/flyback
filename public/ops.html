@@ -150,6 +150,21 @@
       </section>
 
       <section class="card">
+        <div class="card-header">
+          <h2>Webhook Signature Verifier</h2>
+        </div>
+        <p class="hint">Paste the raw JSON body and signature header to verify.</p>
+        <label class="label" for="verifyPayload">Payload</label>
+        <textarea id="verifyPayload" class="code-block" rows="8" placeholder="{ ... }"></textarea>
+        <div class="row">
+          <input id="verifySecret" type="password" placeholder="Shared secret" />
+          <input id="verifySignature" type="text" placeholder="x-flyback-signature" />
+          <button id="verifyButton" class="btn ghost">Verify</button>
+        </div>
+        <div id="verifyResult" class="row meta"></div>
+      </section>
+
+      <section class="card">
         <h2>Publisher Policy</h2>
         <div id="publisherPolicy" class="table"></div>
       </section>

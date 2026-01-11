@@ -293,6 +293,30 @@ select {
   border-bottom: none;
 }
 
+.row.note {
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  gap: 8px;
+}
+
+.table .row.note {
+  border-bottom: none;
+  padding-top: 0;
+}
+
+.code-block textarea,
+textarea.code-block {
+  width: 100%;
+  min-height: 140px;
+  resize: vertical;
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  padding: 12px;
+  font-family: "SFMono-Regular", "Consolas", "Liberation Mono", monospace;
+  font-size: 0.85rem;
+  background: rgba(20, 32, 51, 0.05);
+}
+
 .code-block {
   background: rgba(20, 32, 51, 0.05);
   border: 1px solid var(--panel-border);
