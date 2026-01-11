@@ -243,10 +243,10 @@ const run = async () => {
       console.error("replay_webhook.schema.invalid", { seq: payload.seq, event_id: payload.event_id, errors: schemaErrors });
       process.exit(1);
     }
-    if (dryRun) {
-      console.log("replay_webhook.dry", { seq: payload.seq, event_id: payload.event_id });
-      continue;
-    }
+  if (dryRun) {
+    console.log("replay_webhook.dry", { seq: payload.seq, event_id: payload.event_id });
+    continue;
+  }
     const result = await postWebhook(payload);
     if (!result.ok) {
       console.error("replay_webhook.fail", {

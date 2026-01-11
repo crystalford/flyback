@@ -17,6 +17,7 @@ const payoutRunsEl = document.getElementById("payoutRuns");
 const payoutReconBadgeEl = document.getElementById("payoutReconBadge");
 const payoutSummaryEl = document.getElementById("payoutSummary");
 const payoutRunLinksEl = document.getElementById("payoutRunLinks");
+const publisherStatementEl = document.getElementById("publisherStatement");
 const payoutSparkEl = document.getElementById("payoutSpark");
 const deliverySparkEl = document.getElementById("deliverySpark");
 const systemStatusEl = document.getElementById("systemStatus");
@@ -28,6 +29,7 @@ const exportCsvEl = document.getElementById("exportCsv");
 const exportDeliveryEl = document.getElementById("exportDelivery");
 const exportPayoutsEl = document.getElementById("exportPayouts");
 const exportPayoutLinksEl = document.getElementById("exportPayoutLinks");
+const exportPublisherStatementEl = document.getElementById("exportPublisherStatement");
 const payoutStatusFilterEl = document.getElementById("payoutStatusFilter");
 const payoutSortEl = document.getElementById("payoutSort");
 const publisherPolicyEl = document.getElementById("publisherPolicy");
@@ -279,11 +281,12 @@ const renderReport = (report) => {
   payoutRunsEl.innerHTML = renderRows(payoutRows, (run) => {
     const created = run.created_at ? new Date(run.created_at).toLocaleString() : "-";
     const statusClass = run.status ? String(run.status).toLowerCase() : "pending";
+    const updated = run.updated_at ? ` (updated ${new Date(run.updated_at).toLocaleDateString()})` : "";
     return `
       <div class="row">
         <span>${run.publisher_id} - ${run.window_id}</span>
         <span>${run.payout_cents} cents <span class="pill ${statusClass}">${run.status}</span></span>
-        <span>${created}</span>
+        <span>${created}${updated}</span>
       </div>
     `;
   });
@@ -356,6 +359,22 @@ const renderReport = (report) => {
       { label: "Priority", value: (policy.demand_priority || []).join(", ") || "-" },
       { label: "Rev share bps", value: policy.rev_share_bps ?? "-" }
     ],
+    (row) => `<div class="row"><span>${row.label}</span><span>${row.value}</span></div>`
+  );
+
+  const statement = report.publisher_statement || null;
+  publisherStatementEl.innerHTML = renderRows(
+    statement
+      ? [
+          { label: "Ledger entries", value: statement.ledger_entries ?? 0 },
+          { label: "Ledger payout", value: statement.ledger_payout_cents ?? 0 },
+          { label: "Payout runs", value: statement.payout_runs ?? 0 },
+          { label: "Pending payout", value: statement.payout_pending_cents ?? 0 },
+          { label: "Sent payout", value: statement.payout_sent_cents ?? 0 },
+          { label: "Settled payout", value: statement.payout_settled_cents ?? 0 },
+          { label: "Last run", value: statement.last_run_at ?? "-" }
+        ]
+      : [],
     (row) => `<div class="row"><span>${row.label}</span><span>${row.value}</span></div>`
   );
 };
@@ -522,6 +541,33 @@ const exportPayoutRunLinks = () => {
 
 exportPayoutLinksEl.addEventListener("click", () => {
   exportPayoutRunLinks();
+});
+
+exportPublisherStatementEl.addEventListener("click", () => {
+  if (!currentReport?.publisher_statement) {
+    return;
+  }
+  const statement = currentReport.publisher_statement;
+  const header =
+    "publisher_id,ledger_entries,ledger_payout_cents,payout_runs,payout_pending_cents,payout_sent_cents,payout_settled_cents,last_run_at\n";
+  const fields = [
+    statement.publisher_id || "",
+    Number.isFinite(statement.ledger_entries) ? statement.ledger_entries : 0,
+    Number.isFinite(statement.ledger_payout_cents) ? statement.ledger_payout_cents : 0,
+    Number.isFinite(statement.payout_runs) ? statement.payout_runs : 0,
+    Number.isFinite(statement.payout_pending_cents) ? statement.payout_pending_cents : 0,
+    Number.isFinite(statement.payout_sent_cents) ? statement.payout_sent_cents : 0,
+    Number.isFinite(statement.payout_settled_cents) ? statement.payout_settled_cents : 0,
+    statement.last_run_at || ""
+  ];
+  const body = fields.map((value) => `"${String(value).replace(/\"/g, "\"\"")}"`).join(",");
+  const blob = new Blob([header + body + "\n"], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "publisher_statement.csv";
+  link.click();
+  URL.revokeObjectURL(url);
 });
 
 refresh();

@@ -107,17 +107,18 @@ if (dryRun) {
   process.exit(0);
 }
 
-runs.forEach((run) => {
-  const record = {
-    run_id: randomUUID(),
-    created_at: new Date().toISOString(),
-    publisher_id: run.publisher_id,
-    window_id: run.window_id,
-    entry_count: run.entry_count,
-    payout_cents: run.payout_cents,
-    entry_ids: run.entry_ids,
-    status: "pending"
-  };
+  runs.forEach((run) => {
+    const record = {
+      run_id: randomUUID(),
+      created_at: new Date().toISOString(),
+      publisher_id: run.publisher_id,
+      window_id: run.window_id,
+      entry_count: run.entry_count,
+      payout_cents: run.payout_cents,
+      entry_ids: run.entry_ids,
+      status: "pending",
+      status_history: [{ status: "pending", updated_at: new Date().toISOString() }]
+    };
   payoutState.runs.push(record);
   console.log("billing.execute.append", {
     run_id: record.run_id,

@@ -479,7 +479,19 @@ const payoutRunSchema = {
     entry_count: { type: "number" },
     payout_cents: { type: "number" },
     entry_ids: { type: "array", items: { type: "string" } },
-    status: { type: "string" }
+    status: { type: "string" },
+    status_history: {
+      type: "array",
+      items: {
+        type: "object",
+        required: ["status", "updated_at"],
+        properties: {
+          status: { type: "string" },
+          updated_at: { type: "string" }
+        },
+        additionalProperties: true
+      }
+    }
   },
   additionalProperties: true
 };
@@ -508,6 +520,32 @@ const payoutRunLinkSchema = {
     run_ids: { type: "array", items: { type: "string" } },
     payout_cents: { type: "number" },
     run_count: { type: "number" }
+  },
+  additionalProperties: true
+};
+
+const publisherStatementSchema = {
+  schema_version: SCHEMA_VERSION,
+  type: "object",
+  required: [
+    "publisher_id",
+    "ledger_entries",
+    "ledger_payout_cents",
+    "payout_runs",
+    "payout_pending_cents",
+    "payout_sent_cents",
+    "payout_settled_cents",
+    "last_run_at"
+  ],
+  properties: {
+    publisher_id: { type: "string" },
+    ledger_entries: { type: "number" },
+    ledger_payout_cents: { type: "number" },
+    payout_runs: { type: "number" },
+    payout_pending_cents: { type: "number" },
+    payout_sent_cents: { type: "number" },
+    payout_settled_cents: { type: "number" },
+    last_run_at: { type: ["string", "null"] }
   },
   additionalProperties: true
 };
@@ -627,6 +665,7 @@ const reportSchema = {
     "aggregates",
     "publisher_floor",
     "publisher_policy",
+    "publisher_statement",
     "last_window_observed",
     "publisher_caps",
     "last_window_billable",
@@ -661,6 +700,20 @@ const reportSchema = {
         allowed_demand_types: { type: "array", items: { type: "string" } },
         demand_priority: { type: "array", items: { type: "string" } },
         rev_share_bps: { type: "number" }
+      },
+      additionalProperties: true
+    },
+    publisher_statement: {
+      type: ["object", "null"],
+      properties: {
+        publisher_id: { type: "string" },
+        ledger_entries: { type: "number" },
+        ledger_payout_cents: { type: "number" },
+        payout_runs: { type: "number" },
+        payout_pending_cents: { type: "number" },
+        payout_sent_cents: { type: "number" },
+        payout_settled_cents: { type: "number" },
+        last_run_at: { type: ["string", "null"] }
       },
       additionalProperties: true
     },
@@ -857,6 +910,7 @@ const schemaDefaults = {
   payout_run: payoutRunSchema,
   payout_reconciliation: payoutReconciliationSchema,
   payout_run_link: payoutRunLinkSchema,
+  publisher_statement: publisherStatementSchema,
   event_payloads: eventPayloadSchemas,
   report_row: reportRowSchema,
   report: reportSchema
@@ -2465,6 +2519,54 @@ const getPayoutRunLinksFromState = (state, publisherId) => {
   return Array.from(links.values()).sort((a, b) => b.payout_cents - a.payout_cents);
 };
 
+const getPublisherStatementFromState = (state, publisherId) => {
+  if (!publisherId) {
+    return null;
+  }
+  const ledgerEntries = state.ledger.filter(
+    (entry) => entry.billable === true && entry.publisher_id === publisherId
+  );
+  const ledgerPayout = ledgerEntries.reduce(
+    (sum, entry) => sum + (Number.isFinite(entry.payout_cents) ? entry.payout_cents : 0),
+    0
+  );
+  const runs = payoutRuns.filter((run) => run.publisher_id === publisherId);
+  const totals = runs.reduce(
+    (acc, run) => {
+      acc.payout_runs += 1;
+      const cents = Number.isFinite(run.payout_cents) ? run.payout_cents : 0;
+      if (run.status === "sent") {
+        acc.payout_sent_cents += cents;
+      } else if (run.status === "settled") {
+        acc.payout_settled_cents += cents;
+      } else {
+        acc.payout_pending_cents += cents;
+      }
+      if (!acc.last_run_at || String(run.created_at || "") > String(acc.last_run_at || "")) {
+        acc.last_run_at = run.created_at || acc.last_run_at;
+      }
+      return acc;
+    },
+    {
+      payout_runs: 0,
+      payout_pending_cents: 0,
+      payout_sent_cents: 0,
+      payout_settled_cents: 0,
+      last_run_at: null
+    }
+  );
+  return {
+    publisher_id: publisherId,
+    ledger_entries: ledgerEntries.length,
+    ledger_payout_cents: ledgerPayout,
+    payout_runs: totals.payout_runs,
+    payout_pending_cents: totals.payout_pending_cents,
+    payout_sent_cents: totals.payout_sent_cents,
+    payout_settled_cents: totals.payout_settled_cents,
+    last_run_at: totals.last_run_at
+  };
+};
+
 const getSelectionView = (state, publisherId, size) => {
   const readOnlyState = createReadOnlyProxy(state, "getSelectionView");
   const publisher = findPublisher(publisherId);
@@ -2571,6 +2673,7 @@ const getReportingView = (state, publisherId) => {
     aggregates: rows,
     publisher_floor: publisherId ? getPublisherFloorConfig(publisherId) : null,
     publisher_policy: publisherId ? resolvePublisherPolicy(publisherId) : null,
+    publisher_statement: publisherId ? getPublisherStatementFromState(readOnlyState, publisherId) : null,
     last_window_observed: publisherId ? getLastWindowObserved(publisherId) : null,
     publisher_caps: publisherId ? getPublisherCapConfig(publisherId) : null,
     last_window_billable: publisherId ? getLastWindowBillableCounts(publisherId) : null,

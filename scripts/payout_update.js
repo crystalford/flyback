@@ -90,8 +90,18 @@ if (matches.length === 0) {
 }
 
 matches.forEach((run) => {
+  if (!Array.isArray(run.status_history)) {
+    run.status_history = [];
+    if (run.status) {
+      run.status_history.push({
+        status: run.status,
+        updated_at: run.updated_at || run.created_at || new Date().toISOString()
+      });
+    }
+  }
   run.status = status;
   run.updated_at = new Date().toISOString();
+  run.status_history.push({ status, updated_at: run.updated_at });
   console.log("payout.update.ok", {
     run_id: run.run_id,
     publisher_id: run.publisher_id,

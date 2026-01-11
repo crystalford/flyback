@@ -270,11 +270,12 @@ const renderReport = (report) => {
   payoutRunsEl.innerHTML = renderRows(payoutRows, (run) => {
     const created = run.created_at ? new Date(run.created_at).toLocaleString() : "-";
     const statusClass = run.status ? String(run.status).toLowerCase() : "pending";
+    const updated = run.updated_at ? ` (updated ${new Date(run.updated_at).toLocaleDateString()})` : "";
     return `
       <div class="row">
         <span>${run.publisher_id} - ${run.window_id}</span>
         <span>${run.payout_cents} cents <span class="pill ${statusClass}">${run.status}</span></span>
-        <span>${created}</span>
+        <span>${created}${updated}</span>
       </div>
     `;
   });

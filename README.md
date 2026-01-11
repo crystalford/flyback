@@ -505,6 +505,8 @@ Payloads include `schema_version` and a `x-flyback-schema-version` header. If `W
 
 For local testing, run `npm run webhook:sink` (listens on `http://0.0.0.0:4040`) and set `WEBHOOK_URL=http://127.0.0.1:4040`.
 
+Verify signatures with `npm run webhook:verify -- --body ./payload.json --secret YOUR_SECRET --signature HEADER_VALUE`.
+
 Replay deliveries from a given sequence with `WEBHOOK_URL=... npm run webhook:replay -- --from 1 --to 50`.
 Replay DLQ entries with `WEBHOOK_URL=... npm run webhook:replay -- --dlq`.
 
