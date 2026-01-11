@@ -3,18 +3,75 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Flyback V1 Demo</title>
+    <title>Flyback Network Console</title>
+    <link rel="stylesheet" href="/ops.css" />
   </head>
   <body>
-    <h1>Flyback V1 Demo</h1>
-    <p>This page loads a single Flyback creative runtime unit and emits an intent token.</p>
+    <main class="shell">
+      <header class="hero">
+        <div class="hero-top">
+          <div>
+            <p class="eyebrow">Flyback</p>
+            <h1>Performance Network Prototype</h1>
+            <p class="subhead">Real-time intent capture, routing, and payout visibility.</p>
+          </div>
+          <nav class="nav">
+            <a href="/ops.html" class="nav-link">Ops</a>
+            <a href="/advertiser.html" class="nav-link">Advertiser</a>
+          </nav>
+        </div>
+      </header>
 
-    <div
-      data-flyback-container
-      data-publisher-id="publisher-demo"
-      data-size="300x250"
-      style="width: 300px; height: 250px;">
-    </div>
+      <section class="strip">
+        <div class="strip-item">
+          <h3>Capture</h3>
+          <p>Emit intent and conversion events from a live creative.</p>
+        </div>
+        <div class="strip-item">
+          <h3>Route</h3>
+          <p>Watch selection decisions and policy filters update.</p>
+        </div>
+        <div class="strip-item">
+          <h3>Verify</h3>
+          <p>Inspect delivery health, payout runs, and reconciliation.</p>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="card">
+          <h2>Live Creative</h2>
+          <p class="hint">This demo loads a Flyback creative runtime and emits intent tokens.</p>
+          <div
+            class="panel"
+            data-flyback-container
+            data-publisher-id="publisher-demo"
+            data-size="300x250"
+            style="width: 300px; height: 250px;">
+          </div>
+        </div>
+        <div class="card">
+          <h2>Getting Started</h2>
+          <div class="table">
+            <div class="row">
+              <span>1. Start the server</span>
+              <span>`node server.js`</span>
+            </div>
+            <div class="row">
+              <span>2. Open ops view</span>
+              <span>`/ops.html?api_key=demo-publisher-key`</span>
+            </div>
+            <div class="row">
+              <span>3. Open advertiser view</span>
+              <span>`/advertiser.html?api_key=demo-advertiser-key`</span>
+            </div>
+            <div class="row">
+              <span>4. Trigger conversions</span>
+              <span>Use the creative buttons</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
 
     <script src="/runtime.js" async></script>
   </body>
