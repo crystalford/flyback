@@ -29,6 +29,8 @@ const exportPayoutsEl = document.getElementById("exportPayouts");
 const payoutStatusFilterEl = document.getElementById("payoutStatusFilter");
 const payoutSortEl = document.getElementById("payoutSort");
 const payoutReconBadgeEl = document.getElementById("payoutReconBadge");
+const payoutRunLinksEl = document.getElementById("payoutRunLinks");
+const exportPayoutLinksEl = document.getElementById("exportPayoutLinks");
 
 const storedKey = localStorage.getItem("flyback_advertiser_key") || "";
 apiKeyInput.value = storedKey;
@@ -276,6 +278,20 @@ const renderReport = (report) => {
       </div>
     `;
   });
+  const links = report.payout_run_links || [];
+  const advertiserIds = new Set(
+    (report.invoice_drafts || []).map((draft) => draft.advertiser_id).filter((id) => id)
+  );
+  const filteredLinks =
+    advertiserIds.size > 0 ? links.filter((link) => advertiserIds.has(link.advertiser_id)) : links;
+  payoutRunLinksEl.innerHTML = renderRows(filteredLinks, (link) => {
+    return `
+      <div class="row">
+        <span>${link.advertiser_id}</span>
+        <span>${link.payout_cents} cents (${link.run_count} runs)</span>
+      </div>
+    `;
+  });
   const recon = report.payout_reconciliation || null;
   if (!recon) {
     payoutReconBadgeEl.textContent = "Recon: -";
@@ -472,6 +488,33 @@ payoutSortEl.addEventListener("change", () => {
     return;
   }
   renderReport(reportCache);
+});
+
+exportPayoutLinksEl.addEventListener("click", () => {
+  const links = Array.isArray(reportCache?.payout_run_links) ? reportCache.payout_run_links : [];
+  const advertiserIds = new Set(
+    (reportCache?.invoice_drafts || []).map((draft) => draft.advertiser_id).filter((id) => id)
+  );
+  const filtered = advertiserIds.size > 0 ? links.filter((link) => advertiserIds.has(link.advertiser_id)) : links;
+  const header = "advertiser_id,payout_cents,run_count,run_ids\n";
+  const body = filtered
+    .map((row) => {
+      const fields = [
+        row.advertiser_id || "",
+        Number.isFinite(row.payout_cents) ? row.payout_cents : 0,
+        Number.isFinite(row.run_count) ? row.run_count : 0,
+        Array.isArray(row.run_ids) ? row.run_ids.join("|") : ""
+      ];
+      return fields.map((value) => `"${String(value).replace(/\"/g, "\"\"")}"`).join(",");
+    })
+    .join("\n");
+  const blob = new Blob([header + body + (body ? "\n" : "")], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "invoice_coverage.csv";
+  link.click();
+  URL.revokeObjectURL(url);
 });
 
 refresh();

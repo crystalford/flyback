@@ -109,6 +109,7 @@ const WEBHOOK_TIMEOUT_MS = Number(process.env.WEBHOOK_TIMEOUT_MS) || 5000;
 const WEBHOOK_RETRY_BASE_MS = Number(process.env.WEBHOOK_RETRY_BASE_MS) || 1000;
 const WEBHOOK_RETRY_MAX_MS = Number(process.env.WEBHOOK_RETRY_MAX_MS) || 30000;
 const WEBHOOK_MAX_RETRIES = Number(process.env.WEBHOOK_MAX_RETRIES) || 10;
+const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || "";
 const OPS_TOKEN_SECRET = process.env.OPS_TOKEN_SECRET || "dev-ops-secret";
 const OPS_TOKEN_TTL_MS = Number(process.env.OPS_TOKEN_TTL_MS) || 15 * 60 * 1000;
 const OPS_TOKEN_COOKIE = "flyback_ops_token";
@@ -121,6 +122,7 @@ const GUARDRAIL_WINDOW_THRESHOLD = 2;
 const CAP_DEPRIORITIZE_THRESHOLD = 0.8;
 const LEDGER_VERSION = 1;
 const EVENT_INDEX_VERSION = 1;
+const DELIVERY_SCHEMA_VERSION = 1;
 let aggregationWindow = {
   started_at_ms: Date.now(),
   started_at: new Date().toISOString()
@@ -497,6 +499,19 @@ const payoutReconciliationSchema = {
   additionalProperties: true
 };
 
+const payoutRunLinkSchema = {
+  schema_version: SCHEMA_VERSION,
+  type: "object",
+  required: ["advertiser_id", "run_ids", "payout_cents", "run_count"],
+  properties: {
+    advertiser_id: { type: "string" },
+    run_ids: { type: "array", items: { type: "string" } },
+    payout_cents: { type: "number" },
+    run_count: { type: "number" }
+  },
+  additionalProperties: true
+};
+
 const eventPayloadSchemas = {
   "intent.created": {
     schema_version: SCHEMA_VERSION,
@@ -617,6 +632,7 @@ const reportSchema = {
     "last_window_billable",
     "payout_reconciliation",
     "payout_runs",
+    "payout_run_links",
     "ledger_stats",
     "ledger_entries",
     "selection_decisions",
@@ -695,6 +711,10 @@ const reportSchema = {
     payout_runs: {
       type: ["array", "null"],
       items: payoutRunSchema
+    },
+    payout_run_links: {
+      type: ["array", "null"],
+      items: payoutRunLinkSchema
     },
     ledger_stats: {
       type: ["object", "null"],
@@ -820,8 +840,9 @@ const schemaDefaults = {
   delivery_payload: {
     schema_version: SCHEMA_VERSION,
     type: "object",
-    required: ["delivery_ts", "seq", "event_id", "type", "ts", "payload"],
+    required: ["schema_version", "delivery_ts", "seq", "event_id", "type", "ts", "payload"],
     properties: {
+      schema_version: { type: "number" },
       delivery_ts: { type: "string" },
       seq: { type: "number" },
       event_id: { type: "string" },
@@ -835,6 +856,7 @@ const schemaDefaults = {
   ledger_entry: ledgerEntrySchema,
   payout_run: payoutRunSchema,
   payout_reconciliation: payoutReconciliationSchema,
+  payout_run_link: payoutRunLinkSchema,
   event_payloads: eventPayloadSchemas,
   report_row: reportRowSchema,
   report: reportSchema
@@ -1627,14 +1649,28 @@ const nextDeliverableEvent = () => {
   return null;
 };
 
+const signWebhookPayload = (body) => {
+  if (!WEBHOOK_SECRET) {
+    return null;
+  }
+  return createHmac("sha256", WEBHOOK_SECRET).update(body).digest("hex");
+};
+
 const postWebhook = async (payload) => {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), WEBHOOK_TIMEOUT_MS);
+  const body = JSON.stringify(payload);
+  const signature = signWebhookPayload(body);
+  const headers = { "content-type": "application/json" };
+  if (signature) {
+    headers["x-flyback-signature"] = signature;
+  }
+  headers["x-flyback-schema-version"] = String(payload.schema_version || DELIVERY_SCHEMA_VERSION);
   try {
     const response = await fetch(WEBHOOK_URL, {
       method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(payload),
+      headers,
+      body,
       signal: controller.signal
     });
     return { ok: response.ok, status: response.status };
@@ -1681,6 +1717,7 @@ const processWebhookDelivery = async () => {
   }
   deliveryInFlight = true;
   const payload = {
+    schema_version: DELIVERY_SCHEMA_VERSION,
     delivery_ts: new Date().toISOString(),
     seq: nextEvent.seq,
     event_id: nextEvent.event_id,
@@ -2384,6 +2421,50 @@ const getPayoutReconciliationFromState = (state, publisherId) => {
   };
 };
 
+const getPayoutRunLinksFromState = (state, publisherId) => {
+  if (!publisherId) {
+    return [];
+  }
+  const ledgerById = new Map();
+  state.ledger.forEach((entry) => {
+    if (!entry || entry.billable !== true) {
+      return;
+    }
+    if (!entry.entry_id || entry.publisher_id !== publisherId) {
+      return;
+    }
+    ledgerById.set(entry.entry_id, entry);
+  });
+  const links = new Map();
+  payoutRuns
+    .filter((run) => run.publisher_id === publisherId)
+    .forEach((run) => {
+      if (!Array.isArray(run.entry_ids)) {
+        return;
+      }
+      const advertisers = new Set();
+      run.entry_ids.forEach((entryId) => {
+        const entry = ledgerById.get(entryId);
+        if (entry && entry.advertiser_id) {
+          advertisers.add(entry.advertiser_id);
+        }
+      });
+      advertisers.forEach((advertiserId) => {
+        const current = links.get(advertiserId) || {
+          advertiser_id: advertiserId,
+          run_ids: [],
+          payout_cents: 0,
+          run_count: 0
+        };
+        current.run_ids.push(run.run_id);
+        current.run_count += 1;
+        current.payout_cents += Number.isFinite(run.payout_cents) ? run.payout_cents : 0;
+        links.set(advertiserId, current);
+      });
+    });
+  return Array.from(links.values()).sort((a, b) => b.payout_cents - a.payout_cents);
+};
+
 const getSelectionView = (state, publisherId, size) => {
   const readOnlyState = createReadOnlyProxy(state, "getSelectionView");
   const publisher = findPublisher(publisherId);
@@ -2495,6 +2576,7 @@ const getReportingView = (state, publisherId) => {
     last_window_billable: publisherId ? getLastWindowBillableCounts(publisherId) : null,
     payout_reconciliation: publisherId ? getPayoutReconciliationFromState(readOnlyState, publisherId) : null,
     payout_runs: publisherId ? payoutRuns.filter((run) => run.publisher_id === publisherId).slice(0, 10) : null,
+    payout_run_links: publisherId ? getPayoutRunLinksFromState(readOnlyState, publisherId) : null,
     ledger_stats: publisherId ? getLedgerStatsFromState(readOnlyState, publisherId) : null,
     ledger_entries: publisherId ? getLedgerEntriesFromState(readOnlyState, publisherId, 10) : null,
     selection_decisions: publisherId ? getSelectionHistory(publisherId, 50) : null,

@@ -16,6 +16,7 @@ const invoicesEl = document.getElementById("invoices");
 const payoutRunsEl = document.getElementById("payoutRuns");
 const payoutReconBadgeEl = document.getElementById("payoutReconBadge");
 const payoutSummaryEl = document.getElementById("payoutSummary");
+const payoutRunLinksEl = document.getElementById("payoutRunLinks");
 const payoutSparkEl = document.getElementById("payoutSpark");
 const deliverySparkEl = document.getElementById("deliverySpark");
 const systemStatusEl = document.getElementById("systemStatus");
@@ -26,6 +27,7 @@ const nextPageEl = document.getElementById("nextPage");
 const exportCsvEl = document.getElementById("exportCsv");
 const exportDeliveryEl = document.getElementById("exportDelivery");
 const exportPayoutsEl = document.getElementById("exportPayouts");
+const exportPayoutLinksEl = document.getElementById("exportPayoutLinks");
 const payoutStatusFilterEl = document.getElementById("payoutStatusFilter");
 const payoutSortEl = document.getElementById("payoutSort");
 const publisherPolicyEl = document.getElementById("publisherPolicy");
@@ -285,6 +287,14 @@ const renderReport = (report) => {
       </div>
     `;
   });
+  payoutRunLinksEl.innerHTML = renderRows(report.payout_run_links || [], (link) => {
+    return `
+      <div class="row">
+        <span>${link.advertiser_id}</span>
+        <span>${link.payout_cents} cents (${link.run_count} runs)</span>
+      </div>
+    `;
+  });
   const recon = report.payout_reconciliation || null;
   if (!recon) {
     payoutReconBadgeEl.textContent = "Recon: -";
@@ -485,6 +495,33 @@ exportPayoutsEl.addEventListener("click", () => {
   link.download = "payout_runs.csv";
   link.click();
   URL.revokeObjectURL(url);
+});
+
+const exportPayoutRunLinks = () => {
+  const rows = Array.isArray(currentReport?.payout_run_links) ? currentReport.payout_run_links : [];
+  const header = "advertiser_id,payout_cents,run_count,run_ids\n";
+  const body = rows
+    .map((row) => {
+      const fields = [
+        row.advertiser_id || "",
+        Number.isFinite(row.payout_cents) ? row.payout_cents : 0,
+        Number.isFinite(row.run_count) ? row.run_count : 0,
+        Array.isArray(row.run_ids) ? row.run_ids.join("|") : ""
+      ];
+      return fields.map((value) => `"${String(value).replace(/\"/g, "\"\"")}"`).join(",");
+    })
+    .join("\n");
+  const blob = new Blob([header + body + (body ? "\n" : "")], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "payout_run_links.csv";
+  link.click();
+  URL.revokeObjectURL(url);
+};
+
+exportPayoutLinksEl.addEventListener("click", () => {
+  exportPayoutRunLinks();
 });
 
 refresh();

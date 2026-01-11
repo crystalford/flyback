@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { createHmac } from "crypto";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -12,6 +13,8 @@ const schemaFile = path.join(rootDir, "schemas", "schemas.json");
 
 const WEBHOOK_URL = process.env.WEBHOOK_URL || "";
 const WEBHOOK_TIMEOUT_MS = Number(process.env.WEBHOOK_TIMEOUT_MS) || 5000;
+const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || "";
+const DELIVERY_SCHEMA_VERSION = 1;
 
 const schemaTypeMatches = (type, value) => {
   switch (type) {
@@ -151,14 +154,28 @@ const readDlq = () => {
     .map((line) => JSON.parse(line));
 };
 
+const signPayload = (body) => {
+  if (!WEBHOOK_SECRET) {
+    return null;
+  }
+  return createHmac("sha256", WEBHOOK_SECRET).update(body).digest("hex");
+};
+
 const postWebhook = async (payload) => {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), WEBHOOK_TIMEOUT_MS);
+  const body = JSON.stringify(payload);
+  const signature = signPayload(body);
+  const headers = { "content-type": "application/json" };
+  if (signature) {
+    headers["x-flyback-signature"] = signature;
+  }
+  headers["x-flyback-schema-version"] = String(payload.schema_version || DELIVERY_SCHEMA_VERSION);
   try {
     const response = await fetch(WEBHOOK_URL, {
       method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(payload),
+      headers,
+      body,
       signal: controller.signal
     });
     return { ok: response.ok, status: response.status };
@@ -213,6 +230,7 @@ const run = async () => {
     const payload = dlq
       ? event.payload
       : {
+          schema_version: DELIVERY_SCHEMA_VERSION,
           delivery_ts: new Date().toISOString(),
           seq: event.seq,
           event_id: event.event_id,

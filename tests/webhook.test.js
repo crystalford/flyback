@@ -414,6 +414,7 @@ test("webhook replay dry-run supports dlq source", async () => {
 
   const dlqPath = path.join(tempDir, "delivery_dlq.ndjson");
   const payload = {
+    schema_version: 1,
     delivery_ts: new Date().toISOString(),
     seq: 42,
     event_id: "event-replay-test",

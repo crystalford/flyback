@@ -501,6 +501,8 @@ JSON schemas define the shape of events, registry/policies, and report read mode
 
 A writer can deliver resolved outcomes to an external webhook. Configure `WEBHOOK_URL` to enable delivery. Only writer processes send; replicas skip delivery. Delivery is at-least-once, sequential, and retry-safe (exponential backoff) using a persisted `last_delivered_seq` cursor in `data/delivery_state.json`.
 
+Payloads include `schema_version` and a `x-flyback-schema-version` header. If `WEBHOOK_SECRET` is set, deliveries include `x-flyback-signature` (HMAC SHA256 of the raw JSON body).
+
 For local testing, run `npm run webhook:sink` (listens on `http://0.0.0.0:4040`) and set `WEBHOOK_URL=http://127.0.0.1:4040`.
 
 Replay deliveries from a given sequence with `WEBHOOK_URL=... npm run webhook:replay -- --from 1 --to 50`.
@@ -512,7 +514,9 @@ Visit `/ops.html` for a read-only control room that surfaces aggregates, ledger 
 
 Load it once with `/ops.html?api_key=YOUR_KEY` to mint a short-lived signed cookie for assets. The header includes the publisher id when available.
 
-The advertiser view lives at `/advertiser.html` and uses the same signed-cookie flow. It surfaces invoice draft totals and the last 5 selections.
+The advertiser view lives at `/advertiser.html` and uses the same signed-cookie flow. It surfaces invoice draft totals, payout runs, and the last 5 selections.
+
+Payout runs now support sorting, status filtering, and advertiser coverage links derived from ledger entry IDs.
 
 Delivery health is exposed via `/v1/reports` as `delivery_health`, including last delivered seq, last event seq, delivery lag, last attempt time, retry count, and DLQ stats.
 
@@ -560,11 +564,15 @@ Payout runs are surfaced in `/v1/reports` as `payout_runs` (read-only) for ops v
 
 Payout reconciliation status is surfaced in `/v1/reports` as `payout_reconciliation` for ops monitoring.
 
-## 16.30 Ops Snapshot (V5)
+## 16.30 Publisher Statements (V5)
+
+`npm run billing:publisher-statement` writes `data/publisher_statements.json` and `data/publisher_statements.csv` from ledger + payout runs.
+
+## 16.31 Ops Snapshot (V5)
 
 `npm run ops:snapshot` prints a compact health snapshot (registry counts, budgets, aggregates window, ledger totals, delivery state + DLQ).
 
-## 16.31 Event Export (V5)
+## 16.32 Event Export (V5)
 
 `npm run events:export -- --from 1 --to 500 --out ./events.ndjson` exports event ranges for audit and writes a `sha256` sidecar file.
 
