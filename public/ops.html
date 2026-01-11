@@ -12,8 +12,8 @@
         <div class="hero-top">
           <div>
             <p class="eyebrow">Flyback V5</p>
-            <h1>Control Surface</h1>
-            <p class="subhead">Read-only observability for publishers and advertisers.</p>
+            <h1>Network Console</h1>
+            <p class="subhead">Live performance, payouts, and delivery health in one place.</p>
           </div>
           <nav class="nav">
             <a href="/ops.html" class="nav-link active">Ops</a>
@@ -22,9 +22,24 @@
         </div>
       </header>
 
+      <section class="strip">
+        <div class="strip-item">
+          <h3>Measure</h3>
+          <p>Track intent, resolution, and payout performance per campaign.</p>
+        </div>
+        <div class="strip-item">
+          <h3>Route</h3>
+          <p>See selection decisions and policy constraints in real time.</p>
+        </div>
+        <div class="strip-item">
+          <h3>Verify</h3>
+          <p>Reconcile payouts, inspect delivery, and validate signatures.</p>
+        </div>
+      </section>
+
       <section class="panel">
         <div class="row">
-          <label class="label" for="apiKey">Publisher API Key</label>
+          <label class="label" for="apiKey">Publisher Access Key</label>
           <input id="apiKey" type="password" placeholder="demo-publisher-key" />
           <button id="saveKey" class="btn">Save</button>
           <button id="refresh" class="btn ghost">Refresh</button>
@@ -44,7 +59,7 @@
         <div class="card">
           <div class="card-header">
             <div>
-              <h2>Aggregates</h2>
+              <h2>Performance Overview</h2>
               <p class="hint">Filter by campaign, creative, or publisher.</p>
             </div>
             <div class="controls">
@@ -66,7 +81,7 @@
           <div id="aggregates" class="table"></div>
         </div>
         <div class="card">
-          <h2>Ledger</h2>
+          <h2>Payout Ledger</h2>
           <div class="sparkline-row">
             <span class="sparkline-label">Payout trend</span>
             <div id="payoutSpark" class="sparkline"></div>
@@ -78,7 +93,7 @@
       </section>
 
       <section class="card">
-        <h2>Selections</h2>
+        <h2>Routing Decisions</h2>
         <div id="selections" class="table"></div>
       </section>
 
@@ -130,7 +145,7 @@
 
       <section class="card">
         <div class="card-header">
-          <h2>Advertiser Run Links</h2>
+          <h2>Advertiser Coverage</h2>
           <button id="exportPayoutLinks" class="btn ghost">Download Links CSV</button>
         </div>
         <div id="payoutRunLinks" class="table"></div>
