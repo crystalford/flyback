@@ -27,6 +27,8 @@ const exportCsvEl = document.getElementById("exportCsv");
 const exportDeliveryEl = document.getElementById("exportDelivery");
 const exportPayoutsEl = document.getElementById("exportPayouts");
 const payoutStatusFilterEl = document.getElementById("payoutStatusFilter");
+const payoutSortEl = document.getElementById("payoutSort");
+const publisherPolicyEl = document.getElementById("publisherPolicy");
 const aggregateCountEl = document.getElementById("aggregateCount");
 const pageInfoEl = document.getElementById("pageInfo");
 
@@ -236,6 +238,20 @@ const renderReport = (report) => {
     }
     return (run.status || "") === payoutFilter;
   });
+  const sortMode = payoutSortEl ? payoutSortEl.value : "created_desc";
+  payoutRows.sort((a, b) => {
+    switch (sortMode) {
+      case "created_asc":
+        return String(a.created_at || "").localeCompare(String(b.created_at || ""));
+      case "payout_desc":
+        return (b.payout_cents || 0) - (a.payout_cents || 0);
+      case "payout_asc":
+        return (a.payout_cents || 0) - (b.payout_cents || 0);
+      case "created_desc":
+      default:
+        return String(b.created_at || "").localeCompare(String(a.created_at || ""));
+    }
+  });
   const counts = allPayoutRuns.reduce(
     (acc, run) => {
       const status = run.status || "unknown";
@@ -260,10 +276,11 @@ const renderReport = (report) => {
   `;
   payoutRunsEl.innerHTML = renderRows(payoutRows, (run) => {
     const created = run.created_at ? new Date(run.created_at).toLocaleString() : "-";
+    const statusClass = run.status ? String(run.status).toLowerCase() : "pending";
     return `
       <div class="row">
         <span>${run.publisher_id} - ${run.window_id}</span>
-        <span>${run.payout_cents} cents (${run.status})</span>
+        <span>${run.payout_cents} cents <span class="pill ${statusClass}">${run.status}</span></span>
         <span>${created}</span>
       </div>
     `;
@@ -318,6 +335,19 @@ const renderReport = (report) => {
   systemStatusEl.innerHTML = renderRows(systemRows, (row) => {
     return `<div class="row"><span>${row.label}</span><span>${row.value}</span></div>`;
   });
+
+  const policy = report.publisher_policy || {};
+  publisherPolicyEl.innerHTML = renderRows(
+    [
+      { label: "Selection mode", value: policy.selection_mode ?? "-" },
+      { label: "Floor", value: policy.floor_value_per_1k ?? "-" },
+      { label: "Floor type", value: policy.floor_type ?? "-" },
+      { label: "Allowed demand", value: (policy.allowed_demand_types || []).join(", ") || "-" },
+      { label: "Priority", value: (policy.demand_priority || []).join(", ") || "-" },
+      { label: "Rev share bps", value: policy.rev_share_bps ?? "-" }
+    ],
+    (row) => `<div class="row"><span>${row.label}</span><span>${row.value}</span></div>`
+  );
 };
 
 const exportAggregatesCsv = () => {
@@ -415,6 +445,13 @@ exportDeliveryEl.addEventListener("click", async () => {
 });
 
 payoutStatusFilterEl.addEventListener("change", () => {
+  if (!currentReport) {
+    return;
+  }
+  renderReport(currentReport);
+});
+
+payoutSortEl.addEventListener("change", () => {
   if (!currentReport) {
     return;
   }

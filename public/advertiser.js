@@ -27,6 +27,8 @@ const exportSelectionsEl = document.getElementById("exportSelections");
 const exportLedgerEl = document.getElementById("exportLedger");
 const exportPayoutsEl = document.getElementById("exportPayouts");
 const payoutStatusFilterEl = document.getElementById("payoutStatusFilter");
+const payoutSortEl = document.getElementById("payoutSort");
+const payoutReconBadgeEl = document.getElementById("payoutReconBadge");
 
 const storedKey = localStorage.getItem("flyback_advertiser_key") || "";
 apiKeyInput.value = storedKey;
@@ -227,6 +229,20 @@ const renderReport = (report) => {
     }
     return (run.status || "") === payoutFilter;
   });
+  const sortMode = payoutSortEl ? payoutSortEl.value : "created_desc";
+  payoutRows.sort((a, b) => {
+    switch (sortMode) {
+      case "created_asc":
+        return String(a.created_at || "").localeCompare(String(b.created_at || ""));
+      case "payout_desc":
+        return (b.payout_cents || 0) - (a.payout_cents || 0);
+      case "payout_asc":
+        return (a.payout_cents || 0) - (b.payout_cents || 0);
+      case "created_desc":
+      default:
+        return String(b.created_at || "").localeCompare(String(a.created_at || ""));
+    }
+  });
   const counts = allPayoutRuns.reduce(
     (acc, run) => {
       const status = run.status || "unknown";
@@ -251,14 +267,29 @@ const renderReport = (report) => {
   `;
   payoutRunsEl.innerHTML = renderRows(payoutRows, (run) => {
     const created = run.created_at ? new Date(run.created_at).toLocaleString() : "-";
+    const statusClass = run.status ? String(run.status).toLowerCase() : "pending";
     return `
       <div class="row">
         <span>${run.publisher_id} - ${run.window_id}</span>
-        <span>${run.payout_cents} cents (${run.status})</span>
+        <span>${run.payout_cents} cents <span class="pill ${statusClass}">${run.status}</span></span>
         <span>${created}</span>
       </div>
     `;
   });
+  const recon = report.payout_reconciliation || null;
+  if (!recon) {
+    payoutReconBadgeEl.textContent = "Recon: -";
+    payoutReconBadgeEl.classList.remove("ok", "warn");
+  } else if (recon.status === "ok") {
+    payoutReconBadgeEl.textContent = `Recon: ok (${recon.runs_checked})`;
+    payoutReconBadgeEl.classList.add("ok");
+    payoutReconBadgeEl.classList.remove("warn");
+  } else {
+    const issues = (recon.mismatches || 0) + (recon.unassigned_entries || 0);
+    payoutReconBadgeEl.textContent = `Recon: warn (${issues})`;
+    payoutReconBadgeEl.classList.add("warn");
+    payoutReconBadgeEl.classList.remove("ok");
+  }
 };
 
 const renderDelivery = (delivery) => {
@@ -430,6 +461,13 @@ exportPayoutsEl.addEventListener("click", () => {
 });
 
 payoutStatusFilterEl.addEventListener("change", () => {
+  if (!reportCache) {
+    return;
+  }
+  renderReport(reportCache);
+});
+
+payoutSortEl.addEventListener("change", () => {
   if (!reportCache) {
     return;
   }

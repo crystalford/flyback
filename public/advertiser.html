@@ -108,13 +108,22 @@
       </section>
 
       <section class="card">
-        <h2>Payout Runs</h2>
+        <div class="card-header">
+          <h2>Payout Runs</h2>
+          <span id="payoutReconBadge" class="badge">Recon: -</span>
+        </div>
         <div class="controls">
           <select id="payoutStatusFilter">
             <option value="all">All statuses</option>
             <option value="pending">Pending</option>
             <option value="sent">Sent</option>
             <option value="settled">Settled</option>
+          </select>
+          <select id="payoutSort">
+            <option value="created_desc">Newest first</option>
+            <option value="created_asc">Oldest first</option>
+            <option value="payout_desc">Largest payout</option>
+            <option value="payout_asc">Smallest payout</option>
           </select>
           <button id="exportPayouts" class="btn ghost">Download Payouts CSV</button>
         </div>

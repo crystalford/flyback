@@ -497,6 +497,7 @@
     "required": [
       "aggregates",
       "publisher_floor",
+      "publisher_policy",
       "last_window_observed",
       "publisher_caps",
       "last_window_billable",
@@ -546,6 +547,19 @@
           "selection_mode": { "type": "string" },
           "floor_type": { "type": "string" },
           "floor_value_per_1k": { "type": "number" }
+        },
+        "additionalProperties": true
+      },
+      "publisher_policy": {
+        "type": ["object", "null"],
+        "properties": {
+          "selection_mode": { "type": "string" },
+          "floor_type": { "type": "string" },
+          "floor_value_per_1k": { "type": "number" },
+          "derived_value_floor": { "type": "number" },
+          "allowed_demand_types": { "type": "array", "items": { "type": "string" } },
+          "demand_priority": { "type": "array", "items": { "type": "string" } },
+          "rev_share_bps": { "type": "number" }
         },
         "additionalProperties": true
       },

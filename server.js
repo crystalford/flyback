@@ -611,6 +611,7 @@ const reportSchema = {
   required: [
     "aggregates",
     "publisher_floor",
+    "publisher_policy",
     "last_window_observed",
     "publisher_caps",
     "last_window_billable",
@@ -631,6 +632,19 @@ const reportSchema = {
         selection_mode: { type: "string" },
         floor_type: { type: "string" },
         floor_value_per_1k: { type: "number" }
+      },
+      additionalProperties: true
+    },
+    publisher_policy: {
+      type: ["object", "null"],
+      properties: {
+        selection_mode: { type: "string" },
+        floor_type: { type: "string" },
+        floor_value_per_1k: { type: "number" },
+        derived_value_floor: { type: "number" },
+        allowed_demand_types: { type: "array", items: { type: "string" } },
+        demand_priority: { type: "array", items: { type: "string" } },
+        rev_share_bps: { type: "number" }
       },
       additionalProperties: true
     },
@@ -2475,6 +2489,7 @@ const getReportingView = (state, publisherId) => {
   return {
     aggregates: rows,
     publisher_floor: publisherId ? getPublisherFloorConfig(publisherId) : null,
+    publisher_policy: publisherId ? resolvePublisherPolicy(publisherId) : null,
     last_window_observed: publisherId ? getLastWindowObserved(publisherId) : null,
     publisher_caps: publisherId ? getPublisherCapConfig(publisherId) : null,
     last_window_billable: publisherId ? getLastWindowBillableCounts(publisherId) : null,
