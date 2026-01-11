@@ -580,6 +580,12 @@ Payout reconciliation status is surfaced in `/v1/reports` as `payout_reconciliat
 
 `npm run events:export -- --from 1 --to 500 --out ./events.ndjson` exports event ranges for audit and writes a `sha256` sidecar file.
 
+## 16.33 Deployment Hardening (V5)
+
+- Environment validation logs configuration warnings on startup.
+- Security headers are enabled (CSP, frame denial, referrer policy, nosniff).
+- Basic in-memory rate limiting is enabled (set `RATE_LIMIT_BYPASS=true` to disable).
+
 ## 16.2 V2 Config Versions & Migrations
 
 Each config file includes a `version` integer. On startup, the server detects the version, runs in-process migrations in order, then validates the migrated shape. If a migration is missing or the version is ahead of the code, startup fails with a clear log.

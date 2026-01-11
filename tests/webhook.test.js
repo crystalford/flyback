@@ -84,6 +84,7 @@ const startFlyback = async (dataPath, extraEnv = {}) => {
     PORT: String(port),
     START_SERVER: "true",
     FLYBACK_DATA_DIR: dataPath,
+    RATE_LIMIT_BYPASS: "true",
     ...extraEnv
   };
   const proc = spawn(process.execPath, [path.join(rootDir, "server.js")], {

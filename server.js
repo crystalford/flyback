@@ -114,6 +114,9 @@ const OPS_TOKEN_SECRET = process.env.OPS_TOKEN_SECRET || "dev-ops-secret";
 const OPS_TOKEN_TTL_MS = Number(process.env.OPS_TOKEN_TTL_MS) || 15 * 60 * 1000;
 const OPS_TOKEN_COOKIE = "flyback_ops_token";
 const DELIVERY_LAG_WARN = Number(process.env.DELIVERY_LAG_WARN) || 100;
+const RATE_LIMIT_WINDOW_MS = Number(process.env.RATE_LIMIT_WINDOW_MS) || 60000;
+const RATE_LIMIT_MAX = Number(process.env.RATE_LIMIT_MAX) || 120;
+const RATE_LIMIT_BYPASS = process.env.RATE_LIMIT_BYPASS === "true";
 const BUDGET_DEPRIORITIZE_THRESHOLD = 0.2;
 const RECONCILIATION_TOLERANCE = 0.001;
 const SELECTION_HISTORY_LIMIT = 1000;
@@ -136,6 +139,7 @@ let deliveryInFlight = false;
 let deliveryRetryCount = 0;
 let deliveryNextAttemptAt = 0;
 let deliveryCursorIndex = 0;
+const rateLimitBuckets = new Map();
 
 const logReadViolation = (context, path) => {
   console.log("readmodel.violation", { context, path });
@@ -941,10 +945,64 @@ const parseCookies = (header) => {
   return cookies;
 };
 
+const enforceConfig = () => {
+  const issues = [];
+  if (!WRITE_ENABLED && PROCESS_ROLE === "writer") {
+    issues.push("writer_role_without_write_enabled");
+  }
+  if (WRITE_ENABLED && PROCESS_ROLE === "replica") {
+    issues.push("replica_role_with_write_enabled");
+  }
+  if (OPS_TOKEN_SECRET === "dev-ops-secret") {
+    issues.push("ops_token_secret_default");
+  }
+  if (WEBHOOK_URL && !WEBHOOK_URL.startsWith("http")) {
+    issues.push("webhook_url_invalid");
+  }
+  if (RATE_LIMIT_MAX <= 0) {
+    issues.push("rate_limit_max_invalid");
+  }
+  if (issues.length > 0) {
+    console.log("config.warning", { issues });
+  }
+};
+
+enforceConfig();
+
 const signOpsToken = (payload) => {
   const data = Buffer.from(JSON.stringify(payload)).toString("base64url");
   const sig = createHmac("sha256", OPS_TOKEN_SECRET).update(data).digest("base64url");
   return `${data}.${sig}`;
+};
+
+const getClientIp = (req) => {
+  const forwarded = req.headers["x-forwarded-for"];
+  if (typeof forwarded === "string" && forwarded.trim().length > 0) {
+    return forwarded.split(",")[0].trim();
+  }
+  return req.socket?.remoteAddress || "unknown";
+};
+
+const applyRateLimit = (req, res) => {
+  if (RATE_LIMIT_BYPASS) {
+    return true;
+  }
+  const ip = getClientIp(req);
+  const now = Date.now();
+  const bucket = rateLimitBuckets.get(ip) || { count: 0, resetAt: now + RATE_LIMIT_WINDOW_MS };
+  if (now > bucket.resetAt) {
+    bucket.count = 0;
+    bucket.resetAt = now + RATE_LIMIT_WINDOW_MS;
+  }
+  bucket.count += 1;
+  rateLimitBuckets.set(ip, bucket);
+  if (bucket.count > RATE_LIMIT_MAX) {
+    res.writeHead(429, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "rate_limited" }));
+    console.log("rate.limit", { ip, count: bucket.count });
+    return false;
+  }
+  return true;
 };
 
 const verifyOpsToken = (token) => {
@@ -4867,6 +4925,17 @@ const serveStatic = (res, filePath) => {
 
 const server = http.createServer(async (req, res) => {
   try {
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("X-Frame-Options", "DENY");
+    res.setHeader("Referrer-Policy", "no-referrer");
+    res.setHeader(
+      "Content-Security-Policy",
+      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self';"
+    );
+    if (!applyRateLimit(req, res)) {
+      return;
+    }
+
     const url = new URL(req.url, `http://${req.headers.host}`);
 
     if (req.method === "POST" && url.pathname === "/v1/fill") {

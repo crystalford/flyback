@@ -61,7 +61,8 @@ const startServer = async (dataPath, port) => {
     ...process.env,
     PORT: String(port),
     START_SERVER: "true",
-    FLYBACK_DATA_DIR: dataPath
+    FLYBACK_DATA_DIR: dataPath,
+    RATE_LIMIT_BYPASS: "true"
   };
   const proc = spawn(process.execPath, [path.join(rootDir, "server.js")], {
     env,
