@@ -6,6 +6,7 @@ import path from "path";
 import os from "os";
 import { fileURLToPath } from "url";
 import { spawn, spawnSync } from "child_process";
+import { createHmac } from "crypto";
 import net from "net";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -30,8 +31,9 @@ const getAvailablePort = () =>
     });
   });
 
-const createWebhookServer = async ({ failFirst = false } = {}) => {
+const createWebhookServer = async ({ failFirst = false, secret = null } = {}) => {
   const received = [];
+  const signatures = [];
   let first = true;
   const server = http.createServer((req, res) => {
     let body = "";
@@ -48,6 +50,11 @@ const createWebhookServer = async ({ failFirst = false } = {}) => {
         return;
       }
       received.push(payload);
+      if (secret) {
+        const headerSig = req.headers["x-flyback-signature"];
+        const expected = createHmac("sha256", secret).update(body).digest("hex");
+        signatures.push({ header: headerSig, expected });
+      }
       if (failFirst && first) {
         first = false;
         res.writeHead(500, { "Content-Type": "application/json" });
@@ -65,6 +72,7 @@ const createWebhookServer = async ({ failFirst = false } = {}) => {
   return {
     url: `http://127.0.0.1:${port}`,
     received,
+    signatures,
     close: () => new Promise((resolve) => server.close(resolve))
   };
 };
@@ -240,6 +248,50 @@ test("webhook delivers resolution.final payload", async () => {
   assert.equal(payload.type, "resolution.final");
   assertWebhookPayloadShape(payload);
   assert.equal(payload.payload.token_id, tokenId);
+
+  await stopFlyback(proc);
+  await webhook.close();
+});
+
+test("webhook includes signature when secret configured", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "flyback-webhook-"));
+  copyDataDir(tempDir);
+
+  const secret = "test-secret";
+  const webhook = await createWebhookServer({ secret });
+  const { proc, port } = await startFlyback(tempDir, {
+    WEBHOOK_URL: webhook.url,
+    WEBHOOK_SECRET: secret,
+    WEBHOOK_RETRY_BASE_MS: "50",
+    WEBHOOK_RETRY_MAX_MS: "200"
+  });
+
+  const baseUrl = `http://127.0.0.1:${port}`;
+  const intent = await jsonFetch(`${baseUrl}/v1/intent`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-api-key": "demo-publisher-key"
+    },
+    body: JSON.stringify({
+      campaign_id: "campaign-v1",
+      publisher_id: "publisher-demo",
+      creative_id: "creative-v1",
+      intent_type: "qualified"
+    })
+  });
+  assert.equal(intent.status, 200);
+  const tokenId = intent.payload.token.token_id;
+
+  const postbackUrl = `${baseUrl}/v1/postback?token_id=${tokenId}&value=5&stage=purchase&outcome_type=purchase`;
+  const postback = await jsonFetch(postbackUrl, { method: "GET", headers: { "x-api-key": "demo-advertiser-key" } });
+  assert.equal(postback.status, 200);
+
+  const delivered = await waitFor(() => webhook.received.length >= 1, 5000);
+  assert.ok(delivered);
+  assert.ok(webhook.signatures.length >= 1);
+  const { header, expected } = webhook.signatures[0];
+  assert.equal(header, expected);
 
   await stopFlyback(proc);
   await webhook.close();

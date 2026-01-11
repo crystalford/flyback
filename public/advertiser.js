@@ -276,10 +276,15 @@ const renderReport = (report) => {
     const updated = run.updated_at ? ` (updated ${new Date(run.updated_at).toLocaleDateString()})` : "";
     const historyCount = Array.isArray(run.status_history) ? run.status_history.length : 0;
     const historyLabel = historyCount > 0 ? ` | history: ${historyCount}` : "";
+    const historyDetails = historyCount
+      ? run.status_history
+          .map((entry) => `${entry.status || "unknown"}@${entry.updated_at || "-"}`)
+          .join(" | ")
+      : "";
     return `
       <div class="row">
         <span>${run.publisher_id} - ${run.window_id}</span>
-        <span>${run.payout_cents} cents <span class="pill ${statusClass}">${run.status}</span>${historyLabel}</span>
+        <span title="${historyDetails}">${run.payout_cents} cents <span class="pill ${statusClass}">${run.status}</span>${historyLabel}</span>
         <span>${created}${updated}</span>
       </div>
     `;
