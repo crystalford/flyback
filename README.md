@@ -504,10 +504,35 @@ A writer can deliver resolved outcomes to an external webhook. Configure `WEBHOO
 For local testing, run `npm run webhook:sink` (listens on `http://0.0.0.0:4040`) and set `WEBHOOK_URL=http://127.0.0.1:4040`.
 
 Replay deliveries from a given sequence with `WEBHOOK_URL=... npm run webhook:replay -- --from 1 --to 50`.
+Replay DLQ entries with `WEBHOOK_URL=... npm run webhook:replay -- --dlq`.
 
 ## 16.20 Ops Console (V5)
 
 Visit `/ops.html` for a read-only control room that surfaces aggregates, ledger stats, and selection decisions. This is a viewer only and uses `/v1/reports` under the hood.
+
+Load it once with `/ops.html?api_key=YOUR_KEY` to mint a short-lived signed cookie for assets. The header includes the publisher id when available.
+
+Delivery health is exposed via `/v1/reports` as `delivery_health`, including last delivered seq, last event seq, delivery lag, last attempt time, retry count, and DLQ stats.
+
+Failed deliveries beyond `WEBHOOK_MAX_RETRIES` are written to `data/delivery_dlq.ndjson`.
+
+Delivery health is also available via `GET /v1/delivery` for ops tooling. Set `DELIVERY_LAG_WARN` to emit `delivery.lag.warning` logs.
+
+## 16.21 Billing Preview (V5)
+
+`npm run billing:preview` summarizes ledger payouts per campaign/publisher pair (read-only).
+
+## 16.22 Billing Dry Run (V5)
+
+`npm run billing:dry-run` validates ledger payout calculations against registry rev-share settings (read-only).
+
+## 16.23 Ops Snapshot (V5)
+
+`npm run ops:snapshot` prints a compact health snapshot (registry counts, budgets, aggregates window, ledger totals, delivery state + DLQ).
+
+## 16.24 Event Export (V5)
+
+`npm run events:export -- --from 1 --to 500 --out ./events.ndjson` exports event ranges for audit and writes a `sha256` sidecar file.
 
 ## 16.2 V2 Config Versions & Migrations
 

@@ -10,6 +10,10 @@
     "test": "node --test",
     "test:stress": "node scripts/stress.js",
     "webhook:sink": "node scripts/webhook_sink.js",
-    "webhook:replay": "node scripts/replay_webhook.js"
+    "webhook:replay": "node scripts/replay_webhook.js",
+    "billing:preview": "node scripts/billing_preview.js",
+    "billing:dry-run": "node scripts/billing_dry_run.js",
+    "ops:snapshot": "node scripts/health_snapshot.js",
+    "events:export": "node scripts/export_events.js"
   }
 }

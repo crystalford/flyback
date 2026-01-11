@@ -5,7 +5,7 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 import { fileURLToPath } from "url";
-import { spawn } from "child_process";
+import { spawn, spawnSync } from "child_process";
 import net from "net";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -118,6 +118,16 @@ const waitFor = async (predicate, timeoutMs = 5000) => {
   return false;
 };
 
+const assertWebhookPayloadShape = (payload) => {
+  assert.ok(payload);
+  assert.ok(Number.isFinite(payload.seq));
+  assert.equal(typeof payload.event_id, "string");
+  assert.equal(typeof payload.type, "string");
+  assert.equal(typeof payload.ts, "string");
+  assert.equal(typeof payload.delivery_ts, "string");
+  assert.ok(payload.payload && typeof payload.payload === "object");
+};
+
 test("webhook delivers resolution.final payload", async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "flyback-webhook-"));
   copyDataDir(tempDir);
@@ -154,7 +164,7 @@ test("webhook delivers resolution.final payload", async () => {
   assert.ok(delivered);
   const payload = webhook.received[0];
   assert.equal(payload.type, "resolution.final");
-  assert.ok(Number.isFinite(payload.seq));
+  assertWebhookPayloadShape(payload);
   assert.equal(payload.payload.token_id, tokenId);
 
   await stopFlyback(proc);
@@ -209,4 +219,145 @@ test("webhook retries after failure and advances delivery cursor", async () => {
 
   await stopFlyback(proc);
   await webhook.close();
+});
+
+test("webhook sends to dlq after max retries", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "flyback-webhook-"));
+  copyDataDir(tempDir);
+
+  const webhook = await createWebhookServer({ failFirst: true });
+  const { proc, port } = await startFlyback(tempDir, {
+    WEBHOOK_URL: webhook.url,
+    WEBHOOK_RETRY_BASE_MS: "20",
+    WEBHOOK_RETRY_MAX_MS: "20",
+    WEBHOOK_MAX_RETRIES: "1"
+  });
+
+  const baseUrl = `http://127.0.0.1:${port}`;
+  const intent = await jsonFetch(`${baseUrl}/v1/intent`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-api-key": "demo-publisher-key"
+    },
+    body: JSON.stringify({
+      campaign_id: "campaign-v1",
+      publisher_id: "publisher-demo",
+      creative_id: "creative-v1",
+      intent_type: "qualified"
+    })
+  });
+  assert.equal(intent.status, 200);
+  const tokenId = intent.payload.token.token_id;
+
+  const postbackUrl = `${baseUrl}/v1/postback?token_id=${tokenId}&value=5&stage=purchase&outcome_type=purchase`;
+  const postback = await jsonFetch(postbackUrl, { method: "GET", headers: { "x-api-key": "demo-advertiser-key" } });
+  assert.equal(postback.status, 200);
+
+  const dlqPath = path.join(tempDir, "delivery_dlq.ndjson");
+  const dlqWritten = await waitFor(() => fs.existsSync(dlqPath), 5000);
+  assert.ok(dlqWritten);
+  const lines = fs
+    .readFileSync(dlqPath, "utf8")
+    .split("\n")
+    .filter((line) => line.trim().length > 0);
+  assert.ok(lines.length >= 1);
+  const dlqEntry = JSON.parse(lines[0]);
+  assertWebhookPayloadShape(dlqEntry.payload);
+
+  await stopFlyback(proc);
+  await webhook.close();
+});
+
+test("delivery health endpoint returns cursor state", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "flyback-webhook-"));
+  copyDataDir(tempDir);
+
+  const webhook = await createWebhookServer();
+  const { proc, port } = await startFlyback(tempDir, {
+    WEBHOOK_URL: webhook.url,
+    WEBHOOK_RETRY_BASE_MS: "50",
+    WEBHOOK_RETRY_MAX_MS: "200"
+  });
+
+  const baseUrl = `http://127.0.0.1:${port}`;
+  const intent = await jsonFetch(`${baseUrl}/v1/intent`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-api-key": "demo-publisher-key"
+    },
+    body: JSON.stringify({
+      campaign_id: "campaign-v1",
+      publisher_id: "publisher-demo",
+      creative_id: "creative-v1",
+      intent_type: "qualified"
+    })
+  });
+  const tokenId = intent.payload.token.token_id;
+
+  const postbackUrl = `${baseUrl}/v1/postback?token_id=${tokenId}&value=5&stage=purchase&outcome_type=purchase`;
+  await jsonFetch(postbackUrl, { method: "GET", headers: { "x-api-key": "demo-advertiser-key" } });
+
+  const deliveryStatePath = path.join(tempDir, "delivery_state.json");
+  const cursorUpdated = await waitFor(() => {
+    if (!fs.existsSync(deliveryStatePath)) {
+      return false;
+    }
+    const raw = fs.readFileSync(deliveryStatePath, "utf8");
+    const payload = JSON.parse(raw);
+    return Number.isFinite(payload.last_delivered_seq) && payload.last_delivered_seq > 0;
+  }, 5000);
+  assert.ok(cursorUpdated);
+
+  const health = await jsonFetch(`${baseUrl}/v1/delivery`, {
+    method: "GET",
+    headers: { "x-api-key": "demo-publisher-key" }
+  });
+  assert.equal(health.status, 200);
+  assert.ok(Number.isFinite(health.payload.delivery_health.last_delivered_seq));
+  assert.ok(
+    health.payload.delivery_health.last_attempt_at === null ||
+      typeof health.payload.delivery_health.last_attempt_at === "string"
+  );
+  assert.ok(Number.isFinite(health.payload.delivery_health.retry_count));
+  assert.ok(Number.isFinite(health.payload.delivery_health.last_event_seq));
+  assert.ok(Number.isFinite(health.payload.delivery_health.delivery_lag));
+  assert.ok(health.payload.delivery_health.dlq);
+  assert.ok(Number.isFinite(health.payload.delivery_health.dlq.count));
+
+  await stopFlyback(proc);
+  await webhook.close();
+});
+
+test("webhook replay dry-run supports dlq source", async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "flyback-webhook-"));
+  copyDataDir(tempDir);
+
+  const dlqPath = path.join(tempDir, "delivery_dlq.ndjson");
+  const payload = {
+    delivery_ts: new Date().toISOString(),
+    seq: 42,
+    event_id: "event-replay-test",
+    type: "resolution.final",
+    ts: new Date().toISOString(),
+    payload: { token_id: "token-test" }
+  };
+  fs.writeFileSync(
+    dlqPath,
+    `${JSON.stringify({
+      failed_at: new Date().toISOString(),
+      seq: 42,
+      event_id: "event-replay-test",
+      status: 500,
+      error: "fail",
+      payload
+    })}\n`
+  );
+
+  const result = spawnSync(process.execPath, [path.join(rootDir, "scripts", "replay_webhook.js"), "--dlq", "--dry-run"], {
+    env: { ...process.env, FLYBACK_DATA_DIR: tempDir, WEBHOOK_URL: "http://127.0.0.1:1" },
+    encoding: "utf8"
+  });
+  assert.equal(result.status, 0);
 });

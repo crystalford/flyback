@@ -2,7 +2,7 @@ import fs from "fs";
 import http from "http";
 import path from "path";
 import { fileURLToPath } from "url";
-import { randomUUID } from "crypto";
+import { createHmac, randomUUID } from "crypto";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -23,6 +23,7 @@ const snapshotFile = path.join(dataDir, "snapshot.json");
 const projectionStateFile = path.join(dataDir, "projection_state.json");
 const eventIndexFile = path.join(dataDir, "event_index.json");
 const deliveryStateFile = path.join(dataDir, "delivery_state.json");
+const deliveryDlqFile = path.join(dataDir, "delivery_dlq.ndjson");
 
 const contentTypes = {
   ".html": "text/html",
@@ -101,6 +102,11 @@ const WEBHOOK_URL = process.env.WEBHOOK_URL || "";
 const WEBHOOK_TIMEOUT_MS = Number(process.env.WEBHOOK_TIMEOUT_MS) || 5000;
 const WEBHOOK_RETRY_BASE_MS = Number(process.env.WEBHOOK_RETRY_BASE_MS) || 1000;
 const WEBHOOK_RETRY_MAX_MS = Number(process.env.WEBHOOK_RETRY_MAX_MS) || 30000;
+const WEBHOOK_MAX_RETRIES = Number(process.env.WEBHOOK_MAX_RETRIES) || 10;
+const OPS_TOKEN_SECRET = process.env.OPS_TOKEN_SECRET || "dev-ops-secret";
+const OPS_TOKEN_TTL_MS = Number(process.env.OPS_TOKEN_TTL_MS) || 15 * 60 * 1000;
+const OPS_TOKEN_COOKIE = "flyback_ops_token";
+const DELIVERY_LAG_WARN = Number(process.env.DELIVERY_LAG_WARN) || 100;
 const BUDGET_DEPRIORITIZE_THRESHOLD = 0.2;
 const RECONCILIATION_TOLERANCE = 0.001;
 const SELECTION_HISTORY_LIMIT = 1000;
@@ -113,7 +119,11 @@ let aggregationWindow = {
   started_at_ms: Date.now(),
   started_at: new Date().toISOString()
 };
-let deliveryState = { last_delivered_seq: 0 };
+let deliveryState = {
+  last_delivered_seq: 0,
+  last_attempt_at: null,
+  retry_count: 0
+};
 let deliveryInFlight = false;
 let deliveryRetryCount = 0;
 let deliveryNextAttemptAt = 0;
@@ -358,7 +368,24 @@ const deliveryStateSchema = {
   required: ["last_delivered_seq"],
   properties: {
     last_delivered_seq: { type: "integer" },
-    updated_at: { type: "string" }
+    updated_at: { type: "string" },
+    last_attempt_at: { type: ["string", "null"] },
+    retry_count: { type: "number" }
+  },
+  additionalProperties: true
+};
+
+const dlqEntrySchema = {
+  schema_version: SCHEMA_VERSION,
+  type: "object",
+  required: ["failed_at", "seq", "event_id", "status", "error", "payload"],
+  properties: {
+    failed_at: { type: "string" },
+    seq: { type: "integer" },
+    event_id: { type: "string" },
+    status: { type: "number" },
+    error: { type: ["string", "null"] },
+    payload: { type: "object" }
   },
   additionalProperties: true
 };
@@ -541,7 +568,8 @@ const reportSchema = {
     "publisher_caps",
     "last_window_billable",
     "ledger_stats",
-    "selection_decisions"
+    "selection_decisions",
+    "delivery_health"
   ],
   properties: {
     aggregates: { type: "array", items: reportRowSchema },
@@ -635,6 +663,36 @@ const reportSchema = {
         },
         additionalProperties: true
       }
+    },
+    delivery_health: {
+      type: ["object", "null"],
+      properties: {
+        last_delivered_seq: { type: "number" },
+        last_attempt_at: { type: ["string", "null"] },
+        retry_count: { type: "number" },
+        last_event_seq: { type: "number" },
+        delivery_lag: { type: "number" },
+        dlq: {
+          type: "object",
+          required: ["count", "last_entry"],
+          properties: {
+            count: { type: "number" },
+            last_entry: {
+              type: ["object", "null"],
+              properties: {
+                failed_at: { type: "string" },
+                seq: { type: "number" },
+                event_id: { type: "string" },
+                status: { type: "number" },
+                error: { type: ["string", "null"] }
+              },
+              additionalProperties: true
+            }
+          },
+          additionalProperties: true
+        }
+      },
+      additionalProperties: true
     }
   },
   additionalProperties: true
@@ -648,6 +706,88 @@ console.log("process.startup", {
   event_authority: WRITE_ENABLED ? "writer" : "read_only"
 });
 console.log("process.webhook", { enabled: Boolean(WEBHOOK_URL), url: WEBHOOK_URL || null });
+
+const parseCookies = (header) => {
+  const cookies = {};
+  if (!header) {
+    return cookies;
+  }
+  header.split(";").forEach((pair) => {
+    const [key, ...rest] = pair.trim().split("=");
+    if (!key) {
+      return;
+    }
+    cookies[key] = rest.join("=");
+  });
+  return cookies;
+};
+
+const signOpsToken = (payload) => {
+  const data = Buffer.from(JSON.stringify(payload)).toString("base64url");
+  const sig = createHmac("sha256", OPS_TOKEN_SECRET).update(data).digest("base64url");
+  return `${data}.${sig}`;
+};
+
+const verifyOpsToken = (token) => {
+  if (!token) {
+    return null;
+  }
+  const parts = token.split(".");
+  if (parts.length !== 2) {
+    return null;
+  }
+  const [data, sig] = parts;
+  const expected = createHmac("sha256", OPS_TOKEN_SECRET).update(data).digest("base64url");
+  if (expected !== sig) {
+    return null;
+  }
+  try {
+    const payload = JSON.parse(Buffer.from(data, "base64url").toString("utf8"));
+    if (!payload || !Number.isFinite(payload.exp)) {
+      return null;
+    }
+    if (Date.now() > payload.exp) {
+      return null;
+    }
+    return payload;
+  } catch {
+    return null;
+  }
+};
+
+const issueOpsCookie = (res, publisherId) => {
+  const exp = Date.now() + OPS_TOKEN_TTL_MS;
+  const token = signOpsToken({ publisher_id: publisherId, exp });
+  const maxAge = Math.floor(OPS_TOKEN_TTL_MS / 1000);
+  res.setHeader("Set-Cookie", `${OPS_TOKEN_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${maxAge}`);
+};
+
+const authorizeOpsRequest = (req, url, res) => {
+  const cookies = parseCookies(req.headers.cookie);
+  const tokenPayload = verifyOpsToken(cookies[OPS_TOKEN_COOKIE]);
+  if (tokenPayload) {
+    return true;
+  }
+  const apiKeyParam = url.searchParams.get("api_key");
+  const apiKeyHeader = extractApiKey(req);
+  const apiKey = apiKeyHeader || apiKeyParam;
+  const publisherId = resolvePublisherFromApiKey(apiKey);
+  if (publisherId) {
+    issueOpsCookie(res, publisherId);
+    return true;
+  }
+  sendJson(res, 401, { error: "auth_required" });
+  return false;
+};
+
+const getOpsPublisherId = (req) => {
+  const cookies = parseCookies(req.headers.cookie);
+  const tokenPayload = verifyOpsToken(cookies[OPS_TOKEN_COOKIE]);
+  if (tokenPayload && tokenPayload.publisher_id) {
+    return tokenPayload.publisher_id;
+  }
+  return null;
+};
 
 const rejectWrites = (res, endpoint, reason = "write_disabled") => {
   console.log("write.disabled", { endpoint, reason });
@@ -1173,8 +1313,13 @@ const writeJsonFile = (filePath, payload) => {
 const loadDeliveryState = () => {
   const payload = readJsonFile(deliveryStateFile);
   if (!payload) {
-    deliveryState = { last_delivered_seq: 0 };
-    writeJsonFile(deliveryStateFile, { last_delivered_seq: 0, updated_at: new Date().toISOString() });
+    deliveryState = { last_delivered_seq: 0, last_attempt_at: null, retry_count: 0 };
+    writeJsonFile(deliveryStateFile, {
+      last_delivered_seq: 0,
+      last_attempt_at: null,
+      retry_count: 0,
+      updated_at: new Date().toISOString()
+    });
     return;
   }
   const schemaErrors = validateSchema(deliveryStateSchema, payload, "$");
@@ -1182,19 +1327,64 @@ const loadDeliveryState = () => {
     logSchemaErrors("delivery_state", schemaErrors.length ? schemaErrors : ["last_delivered_seq.invalid"], {
       path: deliveryStateFile
     });
-    deliveryState = { last_delivered_seq: 0 };
-    writeJsonFile(deliveryStateFile, { last_delivered_seq: 0, updated_at: new Date().toISOString() });
+    deliveryState = { last_delivered_seq: 0, last_attempt_at: null, retry_count: 0 };
+    writeJsonFile(deliveryStateFile, {
+      last_delivered_seq: 0,
+      last_attempt_at: null,
+      retry_count: 0,
+      updated_at: new Date().toISOString()
+    });
     return;
   }
-  deliveryState = { last_delivered_seq: payload.last_delivered_seq };
+  deliveryState = {
+    last_delivered_seq: payload.last_delivered_seq,
+    last_attempt_at: payload.last_attempt_at ?? null,
+    retry_count: Number.isFinite(payload.retry_count) ? payload.retry_count : 0
+  };
 };
 
 const saveDeliveryState = () => {
   writeJsonFile(deliveryStateFile, {
     last_delivered_seq: deliveryState.last_delivered_seq,
+    last_attempt_at: deliveryState.last_attempt_at,
+    retry_count: deliveryState.retry_count,
     updated_at: new Date().toISOString()
   });
 };
+
+const loadDeliveryDlqStats = () => {
+  if (!fs.existsSync(deliveryDlqFile)) {
+    return { count: 0, last_entry: null };
+  }
+  const raw = fs.readFileSync(deliveryDlqFile, "utf8");
+  if (!raw.trim()) {
+    return { count: 0, last_entry: null };
+  }
+  const lines = raw.split("\n").filter((line) => line.trim().length > 0);
+  let lastEntry = null;
+  if (lines.length > 0) {
+    try {
+      const parsed = JSON.parse(lines[lines.length - 1]);
+      const schemaErrors = validateSchema(dlqEntrySchema, parsed, "$");
+      if (schemaErrors.length > 0) {
+        logSchemaErrors("delivery_dlq", schemaErrors, { path: deliveryDlqFile });
+      } else {
+        lastEntry = {
+          failed_at: parsed.failed_at,
+          seq: parsed.seq,
+          event_id: parsed.event_id,
+          status: parsed.status,
+          error: parsed.error
+        };
+      }
+    } catch (error) {
+      logSchemaErrors("delivery_dlq", ["last_entry.parse_failed"], { path: deliveryDlqFile });
+    }
+  }
+  return { count: lines.length, last_entry: lastEntry };
+};
+
+const getLastEventSeq = () => (events.length > 0 ? events[events.length - 1].seq : 0);
 
 const resolveDeliveryIndex = () => {
   if (!events.length) {
@@ -1239,6 +1429,11 @@ const postWebhook = async (payload) => {
   }
 };
 
+const appendDeliveryDlq = (entry) => {
+  const line = `${JSON.stringify(entry)}\n`;
+  fs.appendFileSync(deliveryDlqFile, line);
+};
+
 const scheduleDeliveryTick = (delayMs = 250) => {
   setTimeout(() => {
     void processWebhookDelivery();
@@ -1278,8 +1473,10 @@ const processWebhookDelivery = async () => {
     payload: nextEvent.payload
   };
   const result = await postWebhook(payload);
+  deliveryState.last_attempt_at = new Date().toISOString();
   if (result.ok) {
     deliveryState.last_delivered_seq = nextEvent.seq;
+    deliveryState.retry_count = 0;
     saveDeliveryState();
     deliveryRetryCount = 0;
     deliveryNextAttemptAt = 0;
@@ -1291,6 +1488,7 @@ const processWebhookDelivery = async () => {
     deliveryCursorIndex += 1;
   } else {
     deliveryRetryCount += 1;
+    deliveryState.retry_count = deliveryRetryCount;
     const delay = Math.min(WEBHOOK_RETRY_BASE_MS * 2 ** (deliveryRetryCount - 1), WEBHOOK_RETRY_MAX_MS);
     deliveryNextAttemptAt = Date.now() + delay;
     console.log("webhook.delivery.fail", {
@@ -1300,6 +1498,24 @@ const processWebhookDelivery = async () => {
       error: result.error || null,
       retry_in_ms: delay
     });
+    if (deliveryRetryCount >= WEBHOOK_MAX_RETRIES) {
+      const dlqEntry = {
+        failed_at: new Date().toISOString(),
+        seq: nextEvent.seq,
+        event_id: nextEvent.event_id,
+        status: result.status || 0,
+        error: result.error || null,
+        payload
+      };
+      appendDeliveryDlq(dlqEntry);
+      console.log("webhook.delivery.dlq", { seq: nextEvent.seq, event_id: nextEvent.event_id });
+      deliveryState.last_delivered_seq = nextEvent.seq;
+      deliveryState.retry_count = 0;
+      saveDeliveryState();
+      deliveryRetryCount = 0;
+      deliveryNextAttemptAt = 0;
+      deliveryCursorIndex += 1;
+    }
   }
   deliveryInFlight = false;
   scheduleDeliveryTick(0);
@@ -1993,7 +2209,21 @@ const getReportingView = (state, publisherId) => {
     publisher_caps: publisherId ? getPublisherCapConfig(publisherId) : null,
     last_window_billable: publisherId ? getLastWindowBillableCounts(publisherId) : null,
     ledger_stats: publisherId ? getLedgerStatsFromState(readOnlyState, publisherId) : null,
-    selection_decisions: publisherId ? getSelectionHistory(publisherId, 50) : null
+    selection_decisions: publisherId ? getSelectionHistory(publisherId, 50) : null,
+    delivery_health: publisherId
+      ? (() => {
+          const lastEventSeq = getLastEventSeq();
+          const lag = Math.max(0, lastEventSeq - deliveryState.last_delivered_seq);
+          return {
+            last_delivered_seq: deliveryState.last_delivered_seq,
+            last_attempt_at: deliveryState.last_attempt_at,
+            retry_count: deliveryState.retry_count,
+            last_event_seq: lastEventSeq,
+            delivery_lag: lag,
+            dlq: loadDeliveryDlqStats()
+          };
+        })()
+      : null
   };
 };
 
@@ -2025,6 +2255,13 @@ const extractApiKey = (req) => {
     return raw.slice(7);
   }
   return raw;
+};
+
+const resolvePublisherFromApiKey = (apiKey) => {
+  if (!apiKey) {
+    return null;
+  }
+  return publisherKeyIndex.get(apiKey) || null;
 };
 
 const authorizePublisher = (req, res, publisherId) => {
@@ -4188,7 +4425,41 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
+      if (req.method === "GET" && url.pathname === "/v1/delivery") {
+        const publisherId = authorizePublisher(req, res, null);
+        if (!publisherId) {
+          return;
+        }
+        const dlqStats = loadDeliveryDlqStats();
+        const lastEventSeq = getLastEventSeq();
+        const lag = Math.max(0, lastEventSeq - deliveryState.last_delivered_seq);
+        if (lag >= DELIVERY_LAG_WARN) {
+          console.log("delivery.lag.warning", {
+            last_event_seq: lastEventSeq,
+            last_delivered_seq: deliveryState.last_delivered_seq,
+            delivery_lag: lag,
+            threshold: DELIVERY_LAG_WARN
+          });
+        }
+        sendJson(res, 200, {
+          delivery_health: {
+            last_delivered_seq: deliveryState.last_delivered_seq,
+            last_attempt_at: deliveryState.last_attempt_at,
+            retry_count: deliveryState.retry_count,
+            last_event_seq: lastEventSeq,
+            delivery_lag: lag,
+            dlq: dlqStats
+          }
+        });
+        return;
+      }
+
       if (req.method === "GET") {
+        if (url.pathname === "/ops.html" || url.pathname.startsWith("/ops.")) {
+          if (!authorizeOpsRequest(req, url, res)) {
+            return;
+          }
+        }
         const requestedPath = url.pathname === "/" ? "/index.html" : url.pathname;
         const filePath = path.join(publicDir, requestedPath);
         serveStatic(res, filePath);

@@ -7,13 +7,14 @@ const __dirname = path.dirname(__filename);
 const rootDir = path.join(__dirname, "..");
 const dataDir = process.env.FLYBACK_DATA_DIR || path.join(rootDir, "data");
 const eventsFile = path.join(dataDir, "events.ndjson");
+const dlqFile = path.join(dataDir, "delivery_dlq.ndjson");
 
 const WEBHOOK_URL = process.env.WEBHOOK_URL || "";
 const WEBHOOK_TIMEOUT_MS = Number(process.env.WEBHOOK_TIMEOUT_MS) || 5000;
 
 const parseArgs = () => {
   const args = process.argv.slice(2);
-  const result = { from: 1, to: null, dryRun: false };
+  const result = { from: 1, to: null, dryRun: false, dlq: false, limit: null };
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i];
     if (arg === "--from" && args[i + 1]) {
@@ -28,6 +29,13 @@ const parseArgs = () => {
     }
     if (arg === "--dry-run") {
       result.dryRun = true;
+    }
+    if (arg === "--dlq") {
+      result.dlq = true;
+    }
+    if (arg === "--limit" && args[i + 1]) {
+      result.limit = Number(args[i + 1]);
+      i += 1;
     }
   }
   return result;
@@ -46,6 +54,20 @@ const readEvents = () => {
     .filter((line) => line.trim().length > 0)
     .map((line) => JSON.parse(line))
     .sort((a, b) => a.seq - b.seq);
+};
+
+const readDlq = () => {
+  if (!fs.existsSync(dlqFile)) {
+    return [];
+  }
+  const raw = fs.readFileSync(dlqFile, "utf8");
+  if (!raw.trim()) {
+    return [];
+  }
+  return raw
+    .split("\n")
+    .filter((line) => line.trim().length > 0)
+    .map((line) => JSON.parse(line));
 };
 
 const postWebhook = async (payload) => {
@@ -71,9 +93,12 @@ const run = async () => {
     console.error("replay_webhook.missing_url", { env: "WEBHOOK_URL" });
     process.exit(1);
   }
-  const { from, to, dryRun } = parseArgs();
-  const events = readEvents();
-  const eligible = events.filter((event) => {
+  const { from, to, dryRun, dlq, limit } = parseArgs();
+  const source = dlq ? readDlq() : readEvents();
+  const eligible = source.filter((event) => {
+    if (dlq) {
+      return !!event.payload;
+    }
     if (event.type !== "resolution.final") {
       return false;
     }
@@ -89,39 +114,43 @@ const run = async () => {
     return true;
   });
 
+  const limited = Number.isFinite(limit) ? eligible.slice(0, Math.max(0, limit)) : eligible;
   console.log("replay_webhook.start", {
     from,
     to: Number.isFinite(to) ? to : null,
-    events: eligible.length,
-    dry_run: dryRun
+    events: limited.length,
+    dry_run: dryRun,
+    source: dlq ? "dlq" : "events"
   });
 
-  for (const event of eligible) {
-    const payload = {
-      delivery_ts: new Date().toISOString(),
-      seq: event.seq,
-      event_id: event.event_id,
-      type: event.type,
-      ts: event.ts,
-      payload: event.payload
-    };
+  for (const event of limited) {
+    const payload = dlq
+      ? event.payload
+      : {
+          delivery_ts: new Date().toISOString(),
+          seq: event.seq,
+          event_id: event.event_id,
+          type: event.type,
+          ts: event.ts,
+          payload: event.payload
+        };
     if (dryRun) {
-      console.log("replay_webhook.dry", { seq: event.seq, event_id: event.event_id });
+      console.log("replay_webhook.dry", { seq: payload.seq, event_id: payload.event_id });
       continue;
     }
     const result = await postWebhook(payload);
     if (!result.ok) {
       console.error("replay_webhook.fail", {
-        seq: event.seq,
-        event_id: event.event_id,
+        seq: payload.seq,
+        event_id: payload.event_id,
         status: result.status,
         error: result.error || null
       });
       process.exit(1);
     }
-    console.log("replay_webhook.ok", { seq: event.seq, event_id: event.event_id, status: result.status });
+    console.log("replay_webhook.ok", { seq: payload.seq, event_id: payload.event_id, status: result.status });
   }
-  console.log("replay_webhook.done", { delivered: eligible.length });
+  console.log("replay_webhook.done", { delivered: limited.length });
 };
 
 run().catch((error) => {

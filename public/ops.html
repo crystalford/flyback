@@ -23,13 +23,33 @@
         </div>
         <div class="row meta">
           <span id="status">Idle</span>
+          <span id="publisherId">Publisher: —</span>
           <span id="lastUpdated">—</span>
         </div>
       </section>
 
       <section class="grid">
         <div class="card">
-          <h2>Aggregates</h2>
+          <div class="card-header">
+            <div>
+              <h2>Aggregates</h2>
+              <p class="hint">Filter by campaign, creative, or publisher.</p>
+            </div>
+            <div class="controls">
+              <input id="aggregateFilter" type="text" placeholder="Filter..." />
+              <select id="pageSize">
+                <option value="5">5</option>
+                <option value="10" selected>10</option>
+                <option value="20">20</option>
+              </select>
+              <button id="prevPage" class="btn ghost">Prev</button>
+              <button id="nextPage" class="btn ghost">Next</button>
+            </div>
+          </div>
+          <div class="row meta">
+            <span id="aggregateCount">0 results</span>
+            <span id="pageInfo">Page 1</span>
+          </div>
           <div id="aggregates" class="table"></div>
         </div>
         <div class="card">
@@ -41,6 +61,16 @@
       <section class="card">
         <h2>Selections</h2>
         <div id="selections" class="table"></div>
+      </section>
+
+      <section class="card">
+        <h2>Delivery Health</h2>
+        <div id="delivery" class="table"></div>
+      </section>
+
+      <section class="card">
+        <h2>Delivery DLQ</h2>
+        <div id="dlq" class="table"></div>
       </section>
     </main>
 

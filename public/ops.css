@@ -135,6 +135,35 @@ input {
   margin-top: 0;
 }
 
+.card-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.hint {
+  margin: 4px 0 0;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+select {
+  border-radius: 10px;
+  border: 1px solid var(--panel-border);
+  padding: 10px 12px;
+  font-size: 0.95rem;
+  background: white;
+}
+
 .table {
   display: grid;
   gap: 8px;
