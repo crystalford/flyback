@@ -31,6 +31,8 @@ const payoutSortEl = document.getElementById("payoutSort");
 const payoutReconBadgeEl = document.getElementById("payoutReconBadge");
 const payoutRunLinksEl = document.getElementById("payoutRunLinks");
 const exportPayoutLinksEl = document.getElementById("exportPayoutLinks");
+const publisherStatementEl = document.getElementById("publisherStatement");
+const exportPublisherStatementEl = document.getElementById("exportPublisherStatement");
 
 const storedKey = localStorage.getItem("flyback_advertiser_key") || "";
 apiKeyInput.value = storedKey;
@@ -293,6 +295,21 @@ const renderReport = (report) => {
       </div>
     `;
   });
+  const statement = report.publisher_statement || null;
+  publisherStatementEl.innerHTML = renderRows(
+    statement
+      ? [
+          { label: "Ledger entries", value: statement.ledger_entries ?? 0 },
+          { label: "Ledger payout", value: statement.ledger_payout_cents ?? 0 },
+          { label: "Payout runs", value: statement.payout_runs ?? 0 },
+          { label: "Pending payout", value: statement.payout_pending_cents ?? 0 },
+          { label: "Sent payout", value: statement.payout_sent_cents ?? 0 },
+          { label: "Settled payout", value: statement.payout_settled_cents ?? 0 },
+          { label: "Last run", value: statement.last_run_at ?? "-" }
+        ]
+      : [],
+    (row) => `<div class="row"><span>${row.label}</span><span>${row.value}</span></div>`
+  );
   const recon = report.payout_reconciliation || null;
   if (!recon) {
     payoutReconBadgeEl.textContent = "Recon: -";
@@ -514,6 +531,33 @@ exportPayoutLinksEl.addEventListener("click", () => {
   const link = document.createElement("a");
   link.href = url;
   link.download = "invoice_coverage.csv";
+  link.click();
+  URL.revokeObjectURL(url);
+});
+
+exportPublisherStatementEl.addEventListener("click", () => {
+  if (!reportCache?.publisher_statement) {
+    return;
+  }
+  const statement = reportCache.publisher_statement;
+  const header =
+    "publisher_id,ledger_entries,ledger_payout_cents,payout_runs,payout_pending_cents,payout_sent_cents,payout_settled_cents,last_run_at\n";
+  const fields = [
+    statement.publisher_id || "",
+    Number.isFinite(statement.ledger_entries) ? statement.ledger_entries : 0,
+    Number.isFinite(statement.ledger_payout_cents) ? statement.ledger_payout_cents : 0,
+    Number.isFinite(statement.payout_runs) ? statement.payout_runs : 0,
+    Number.isFinite(statement.payout_pending_cents) ? statement.payout_pending_cents : 0,
+    Number.isFinite(statement.payout_sent_cents) ? statement.payout_sent_cents : 0,
+    Number.isFinite(statement.payout_settled_cents) ? statement.payout_settled_cents : 0,
+    statement.last_run_at || ""
+  ];
+  const body = fields.map((value) => `"${String(value).replace(/\"/g, "\"\"")}"`).join(",");
+  const blob = new Blob([header + body + "\n"], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "publisher_statement.csv";
   link.click();
   URL.revokeObjectURL(url);
 });

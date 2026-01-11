@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "delivery_ts": "2026-01-10T12:00:00.000Z",
+  "seq": 42,
+  "event_id": "event-123",
+  "type": "resolution.final",
+  "ts": "2026-01-10T11:59:59.000Z",
+  "payload": {
+    "token_id": "token-abc",
+    "stage": "purchase",
+    "resolved_at": "2026-01-10T11:59:59.000Z",
+    "resolved_value": 12,
+    "outcome_type": "purchase",
+    "weighted_value": 120,
+    "billable": true
+  }
+}

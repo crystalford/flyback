@@ -507,6 +507,8 @@ For local testing, run `npm run webhook:sink` (listens on `http://0.0.0.0:4040`)
 
 Verify signatures with `npm run webhook:verify -- --body ./payload.json --secret YOUR_SECRET --signature HEADER_VALUE`.
 
+See `schemas/delivery_payload.example.json` for a sample payload.
+
 Replay deliveries from a given sequence with `WEBHOOK_URL=... npm run webhook:replay -- --from 1 --to 50`.
 Replay DLQ entries with `WEBHOOK_URL=... npm run webhook:replay -- --dlq`.
 
