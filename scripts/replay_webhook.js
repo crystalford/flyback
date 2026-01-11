@@ -8,9 +8,90 @@ const rootDir = path.join(__dirname, "..");
 const dataDir = process.env.FLYBACK_DATA_DIR || path.join(rootDir, "data");
 const eventsFile = path.join(dataDir, "events.ndjson");
 const dlqFile = path.join(dataDir, "delivery_dlq.ndjson");
+const schemaFile = path.join(rootDir, "schemas", "schemas.json");
 
 const WEBHOOK_URL = process.env.WEBHOOK_URL || "";
 const WEBHOOK_TIMEOUT_MS = Number(process.env.WEBHOOK_TIMEOUT_MS) || 5000;
+
+const schemaTypeMatches = (type, value) => {
+  switch (type) {
+    case "object":
+      return value !== null && typeof value === "object" && !Array.isArray(value);
+    case "array":
+      return Array.isArray(value);
+    case "string":
+      return typeof value === "string";
+    case "number":
+      return Number.isFinite(value);
+    case "integer":
+      return Number.isInteger(value);
+    case "boolean":
+      return typeof value === "boolean";
+    case "null":
+      return value === null;
+    default:
+      return true;
+  }
+};
+
+const validateSchema = (schema, value, pathLabel = "$") => {
+  const errors = [];
+  if (!schema || typeof schema !== "object") {
+    return errors;
+  }
+  if (schema.enum && !schema.enum.includes(value)) {
+    errors.push(`${pathLabel}.enum`);
+    return errors;
+  }
+  if (schema.type) {
+    const types = Array.isArray(schema.type) ? schema.type : [schema.type];
+    const matches = types.some((type) => schemaTypeMatches(type, value));
+    if (!matches) {
+      errors.push(`${pathLabel}.type`);
+      return errors;
+    }
+  }
+  if (schema.type === "array" && Array.isArray(value) && schema.items) {
+    value.forEach((entry, index) => {
+      errors.push(...validateSchema(schema.items, entry, `${pathLabel}[${index}]`));
+    });
+  }
+  if (schema.type === "object" && value !== null && typeof value === "object" && !Array.isArray(value)) {
+    if (Array.isArray(schema.required)) {
+      schema.required.forEach((key) => {
+        if (!Object.prototype.hasOwnProperty.call(value, key)) {
+          errors.push(`${pathLabel}.required.${key}`);
+        }
+      });
+    }
+    const props = schema.properties || {};
+    Object.entries(props).forEach(([key, propSchema]) => {
+      if (Object.prototype.hasOwnProperty.call(value, key)) {
+        if (value[key] === undefined) {
+          return;
+        }
+        errors.push(...validateSchema(propSchema, value[key], `${pathLabel}.${key}`));
+      }
+    });
+  }
+  return errors;
+};
+
+const loadDeliverySchema = () => {
+  if (!fs.existsSync(schemaFile)) {
+    return null;
+  }
+  const raw = fs.readFileSync(schemaFile, "utf8");
+  if (!raw.trim()) {
+    return null;
+  }
+  try {
+    const payload = JSON.parse(raw);
+    return payload.delivery_payload || null;
+  } catch {
+    return null;
+  }
+};
 
 const parseArgs = () => {
   const args = process.argv.slice(2);
@@ -94,6 +175,11 @@ const run = async () => {
     process.exit(1);
   }
   const { from, to, dryRun, dlq, limit } = parseArgs();
+  const deliverySchema = loadDeliverySchema();
+  if (!deliverySchema) {
+    console.error("replay_webhook.schema.missing", { path: schemaFile });
+    process.exit(1);
+  }
   const source = dlq ? readDlq() : readEvents();
   const eligible = source.filter((event) => {
     if (dlq) {
@@ -134,6 +220,11 @@ const run = async () => {
           ts: event.ts,
           payload: event.payload
         };
+    const schemaErrors = validateSchema(deliverySchema, payload, "$");
+    if (schemaErrors.length > 0) {
+      console.error("replay_webhook.schema.invalid", { seq: payload.seq, event_id: payload.event_id, errors: schemaErrors });
+      process.exit(1);
+    }
     if (dryRun) {
       console.log("replay_webhook.dry", { seq: payload.seq, event_id: payload.event_id });
       continue;

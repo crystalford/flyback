@@ -11,12 +11,14 @@ const port = Number(process.env.PORT) || 3000;
 const host = process.env.HOST || "0.0.0.0";
 const publicDir = path.join(__dirname, "public");
 const dataDir = process.env.FLYBACK_DATA_DIR || path.join(__dirname, "data");
+const schemaDir = path.join(__dirname, "schemas");
 const tokensFile = path.join(dataDir, "tokens.json");
 const registryFile = path.join(dataDir, "registry.json");
 const budgetsFile = path.join(dataDir, "budgets.json");
 const aggregatesFile = path.join(dataDir, "aggregates.json");
 const keysFile = path.join(dataDir, "keys.json");
 const ledgerFile = path.join(dataDir, "ledger.json");
+const payoutsFile = path.join(dataDir, "payouts.json");
 const eventsFile = path.join(dataDir, "events.ndjson");
 const eventStateFile = path.join(dataDir, "event_state.json");
 const snapshotFile = path.join(dataDir, "snapshot.json");
@@ -24,6 +26,8 @@ const projectionStateFile = path.join(dataDir, "projection_state.json");
 const eventIndexFile = path.join(dataDir, "event_index.json");
 const deliveryStateFile = path.join(dataDir, "delivery_state.json");
 const deliveryDlqFile = path.join(dataDir, "delivery_dlq.ndjson");
+const invoicesDir = path.join(dataDir, "invoices");
+const schemasFile = path.join(schemaDir, "schemas.json");
 
 const contentTypes = {
   ".html": "text/html",
@@ -74,6 +78,8 @@ let tokenIndex = new Map();
 let eventIdIndex = new Set();
 let appliedEventIds = new Set();
 let reducerFailpointType = null;
+let schemaRegistry = null;
+let payoutRuns = [];
 
 const VERSION = "0.3.0";
 const SCHEMA_VERSION = 1;
@@ -450,6 +456,47 @@ const ledgerEntrySchema = {
   additionalProperties: true
 };
 
+const payoutRunSchema = {
+  schema_version: SCHEMA_VERSION,
+  type: "object",
+  required: [
+    "run_id",
+    "created_at",
+    "publisher_id",
+    "window_id",
+    "entry_count",
+    "payout_cents",
+    "entry_ids",
+    "status"
+  ],
+  properties: {
+    run_id: { type: "string" },
+    created_at: { type: "string" },
+    publisher_id: { type: "string" },
+    window_id: { type: "string" },
+    entry_count: { type: "number" },
+    payout_cents: { type: "number" },
+    entry_ids: { type: "array", items: { type: "string" } },
+    status: { type: "string" }
+  },
+  additionalProperties: true
+};
+
+const payoutReconciliationSchema = {
+  schema_version: SCHEMA_VERSION,
+  type: "object",
+  required: ["status", "runs_checked", "mismatches", "missing_entries", "unassigned_entries", "checked_at"],
+  properties: {
+    status: { type: "string" },
+    runs_checked: { type: "number" },
+    mismatches: { type: "number" },
+    missing_entries: { type: "number" },
+    unassigned_entries: { type: "number" },
+    checked_at: { type: "string" }
+  },
+  additionalProperties: true
+};
+
 const eventPayloadSchemas = {
   "intent.created": {
     schema_version: SCHEMA_VERSION,
@@ -567,9 +614,14 @@ const reportSchema = {
     "last_window_observed",
     "publisher_caps",
     "last_window_billable",
+    "payout_reconciliation",
+    "payout_runs",
     "ledger_stats",
+    "ledger_entries",
     "selection_decisions",
-    "delivery_health"
+    "delivery_health",
+    "invoice_drafts",
+    "system_status"
   ],
   properties: {
     aggregates: { type: "array", items: reportRowSchema },
@@ -614,16 +666,36 @@ const reportSchema = {
       },
       additionalProperties: true
     },
+    payout_reconciliation: {
+      type: ["object", "null"],
+      properties: {
+        status: { type: "string" },
+        runs_checked: { type: "number" },
+        mismatches: { type: "number" },
+        missing_entries: { type: "number" },
+        unassigned_entries: { type: "number" },
+        checked_at: { type: "string" }
+      },
+      additionalProperties: true
+    },
+    payout_runs: {
+      type: ["array", "null"],
+      items: payoutRunSchema
+    },
     ledger_stats: {
       type: ["object", "null"],
       properties: {
         window_id: { type: ["string", "null"] },
-        window_payout_cents: { type: "number" },
-        lifetime_payout_cents: { type: "number" },
-        window_entries: { type: "number" },
-        lifetime_entries: { type: "number" }
+        window_payout_cents_estimate: { type: "number" },
+        lifetime_payout_cents_estimate: { type: "number" },
+        window_entry_count: { type: "number" },
+        lifetime_entry_count: { type: "number" }
       },
       additionalProperties: true
+    },
+    ledger_entries: {
+      type: ["array", "null"],
+      items: ledgerEntrySchema
     },
     selection_decisions: {
       type: ["array", "null"],
@@ -693,9 +765,65 @@ const reportSchema = {
         }
       },
       additionalProperties: true
+    },
+    invoice_drafts: {
+      type: "array",
+      items: {
+        type: "object",
+        required: ["filename", "advertiser_id", "payout_cents", "entry_count", "created_at"],
+        properties: {
+          filename: { type: "string" },
+          advertiser_id: { type: "string" },
+          payout_cents: { type: "number" },
+          entry_count: { type: "number" },
+          created_at: { type: "string" }
+        },
+        additionalProperties: true
+      }
+    },
+    system_status: {
+      type: "object",
+      required: ["role", "write_enabled", "webhook_enabled"],
+      properties: {
+        role: { type: "string" },
+        write_enabled: { type: "boolean" },
+        webhook_enabled: { type: "boolean" }
+      },
+      additionalProperties: true
     }
   },
   additionalProperties: true
+};
+
+const schemaDefaults = {
+  policy: policySchema,
+  registry: registrySchema,
+  keys: keysSchema,
+  event: eventSchema,
+  delivery_state: deliveryStateSchema,
+  dlq_entry: dlqEntrySchema,
+  delivery_health: reportSchema.properties.delivery_health,
+  delivery_payload: {
+    schema_version: SCHEMA_VERSION,
+    type: "object",
+    required: ["delivery_ts", "seq", "event_id", "type", "ts", "payload"],
+    properties: {
+      delivery_ts: { type: "string" },
+      seq: { type: "number" },
+      event_id: { type: "string" },
+      type: { type: "string" },
+      ts: { type: "string" },
+      payload: { type: "object" }
+    },
+    additionalProperties: true
+  },
+  token: tokenSchema,
+  ledger_entry: ledgerEntrySchema,
+  payout_run: payoutRunSchema,
+  payout_reconciliation: payoutReconciliationSchema,
+  event_payloads: eventPayloadSchemas,
+  report_row: reportRowSchema,
+  report: reportSchema
 };
 
 console.log("process.role", { role: PROCESS_ROLE, source: resolvedRole ? "env" : "derived" });
@@ -1306,6 +1434,28 @@ const readJsonFile = (filePath) => {
   }
 };
 
+const loadSchemaRegistry = (defaults) => {
+  const payload = readJsonFile(schemasFile);
+  if (!payload) {
+    console.log("schema.load.skipped", { path: schemasFile });
+    return { ...defaults };
+  }
+  if (!isPlainObject(payload)) {
+    console.error("schema.load.failed", { path: schemasFile, reason: "invalid_format" });
+    return { ...defaults };
+  }
+  const registry = { ...defaults };
+  Object.keys(defaults).forEach((key) => {
+    if (payload[key]) {
+      registry[key] = payload[key];
+    }
+  });
+  console.log("schema.load.ok", { path: schemasFile, version: payload.version ?? null });
+  return registry;
+};
+
+schemaRegistry = loadSchemaRegistry(schemaDefaults);
+
 const writeJsonFile = (filePath, payload) => {
   fs.writeFileSync(filePath, `${JSON.stringify(payload, null, 2)}\n`);
 };
@@ -1322,7 +1472,7 @@ const loadDeliveryState = () => {
     });
     return;
   }
-  const schemaErrors = validateSchema(deliveryStateSchema, payload, "$");
+  const schemaErrors = validateSchema(schemaRegistry.delivery_state, payload, "$");
   if (schemaErrors.length > 0 || !Number.isFinite(payload.last_delivered_seq)) {
     logSchemaErrors("delivery_state", schemaErrors.length ? schemaErrors : ["last_delivered_seq.invalid"], {
       path: deliveryStateFile
@@ -1365,7 +1515,7 @@ const loadDeliveryDlqStats = () => {
   if (lines.length > 0) {
     try {
       const parsed = JSON.parse(lines[lines.length - 1]);
-      const schemaErrors = validateSchema(dlqEntrySchema, parsed, "$");
+      const schemaErrors = validateSchema(schemaRegistry.dlq_entry, parsed, "$");
       if (schemaErrors.length > 0) {
         logSchemaErrors("delivery_dlq", schemaErrors, { path: deliveryDlqFile });
       } else {
@@ -1385,6 +1535,58 @@ const loadDeliveryDlqStats = () => {
 };
 
 const getLastEventSeq = () => (events.length > 0 ? events[events.length - 1].seq : 0);
+
+const loadInvoiceDrafts = () => {
+  if (!fs.existsSync(invoicesDir)) {
+    return [];
+  }
+  const files = fs.readdirSync(invoicesDir).filter((name) => name.endsWith(".json"));
+  const drafts = [];
+  files.forEach((filename) => {
+    const filePath = path.join(invoicesDir, filename);
+    try {
+      const payload = JSON.parse(fs.readFileSync(filePath, "utf8"));
+      drafts.push({
+        filename,
+        advertiser_id: payload.advertiser_id || "unknown",
+        payout_cents: Number.isFinite(payload.payout_cents) ? payload.payout_cents : 0,
+        entry_count: Number.isFinite(payload.entry_count) ? payload.entry_count : 0,
+        created_at: payload.created_at || null
+      });
+    } catch {
+      drafts.push({
+        filename,
+        advertiser_id: "unknown",
+        payout_cents: 0,
+        entry_count: 0,
+        created_at: null
+      });
+    }
+  });
+  return drafts.sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
+};
+
+const loadPayoutRuns = () => {
+  if (!fs.existsSync(payoutsFile)) {
+    payoutRuns = [];
+    return;
+  }
+  const payload = readJsonFile(payoutsFile);
+  if (!payload || !Array.isArray(payload.runs)) {
+    console.error("payouts.load.failed", { path: payoutsFile, reason: "invalid_payload" });
+    payoutRuns = [];
+    return;
+  }
+  const valid = payload.runs.filter((run) => {
+    const errors = validateSchema(schemaRegistry.payout_run, run, "$");
+    if (errors.length > 0) {
+      console.error("payouts.schema.invalid", { errors, run_id: run.run_id });
+      return false;
+    }
+    return true;
+  });
+  payoutRuns = valid.sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
+};
 
 const resolveDeliveryIndex = () => {
   if (!events.length) {
@@ -1588,9 +1790,9 @@ const logSchemaErrors = (label, errors, details = {}) => {
 };
 
 const validateEventEntry = (entry, context = "event.validate") => {
-  const errors = validateSchema(eventSchema, entry, "$");
+  const errors = validateSchema(schemaRegistry.event, entry, "$");
   if (!errors.length) {
-    const payloadSchema = eventPayloadSchemas[entry.type];
+    const payloadSchema = schemaRegistry.event_payloads[entry.type];
     if (!payloadSchema) {
       errors.push(`$.type.unknown:${entry.type}`);
     } else {
@@ -1655,7 +1857,7 @@ const loadRegistry = () => {
   }
   const version = typeof registry.version === "number" ? registry.version : 0;
   const migrated = migrateByVersion(registry, version, REGISTRY_VERSION, registryMigrations, "registry");
-  const schemaErrors = validateSchema(registrySchema, migrated, "$");
+  const schemaErrors = validateSchema(schemaRegistry.registry, migrated, "$");
   if (schemaErrors.length > 0) {
     logSchemaErrors("registry", schemaErrors, { path: registryFile });
     process.exit(1);
@@ -1878,7 +2080,7 @@ const loadKeys = () => {
   }
   const version = typeof payload.version === "number" ? payload.version : 0;
   const migrated = migrateByVersion(payload, version, KEYS_VERSION, keysMigrations, "keys");
-  const schemaErrors = validateSchema(keysSchema, migrated, "$");
+  const schemaErrors = validateSchema(schemaRegistry.keys, migrated, "$");
   if (schemaErrors.length > 0) {
     logSchemaErrors("keys", schemaErrors, { path: keysFile });
     process.exit(1);
@@ -2100,6 +2302,74 @@ const getLedgerStatsFromState = (state, publisherId) => {
   };
 };
 
+const getLedgerEntriesFromState = (state, publisherId, limit = 10) => {
+  if (!publisherId) {
+    return [];
+  }
+  return state.ledger
+    .filter((entry) => entry.publisher_id === publisherId)
+    .filter((entry) => entry && entry.billable === true)
+    .slice()
+    .sort((a, b) => (b.payout_cents || 0) - (a.payout_cents || 0))
+    .slice(0, limit)
+    .map((entry) => ({ ...entry }));
+};
+
+const getPayoutReconciliationFromState = (state, publisherId) => {
+  if (!publisherId) {
+    return null;
+  }
+  const ledgerById = new Map();
+  state.ledger.forEach((entry) => {
+    if (!entry || entry.billable !== true) {
+      return;
+    }
+    if (entry.publisher_id !== publisherId || !entry.entry_id) {
+      return;
+    }
+    ledgerById.set(entry.entry_id, entry);
+  });
+  const runs = payoutRuns.filter((run) => run.publisher_id === publisherId);
+  let mismatches = 0;
+  let missingEntries = 0;
+  const runEntryIds = new Set();
+  runs.forEach((run) => {
+    if (!Array.isArray(run.entry_ids)) {
+      return;
+    }
+    let expected = 0;
+    let missing = 0;
+    run.entry_ids.forEach((entryId) => {
+      runEntryIds.add(entryId);
+      const entry = ledgerById.get(entryId);
+      if (!entry) {
+        missing += 1;
+        return;
+      }
+      expected += Number.isFinite(entry.payout_cents) ? entry.payout_cents : 0;
+    });
+    const actual = Number.isFinite(run.payout_cents) ? run.payout_cents : 0;
+    if (missing > 0 || expected !== actual) {
+      mismatches += 1;
+      missingEntries += missing;
+    }
+  });
+  let unassigned = 0;
+  ledgerById.forEach((_entry, entryId) => {
+    if (!runEntryIds.has(entryId)) {
+      unassigned += 1;
+    }
+  });
+  return {
+    status: mismatches > 0 || unassigned > 0 ? "mismatch" : "ok",
+    runs_checked: runs.length,
+    mismatches,
+    missing_entries: missingEntries,
+    unassigned_entries: unassigned,
+    checked_at: new Date().toISOString()
+  };
+};
+
 const getSelectionView = (state, publisherId, size) => {
   const readOnlyState = createReadOnlyProxy(state, "getSelectionView");
   const publisher = findPublisher(publisherId);
@@ -2208,7 +2478,10 @@ const getReportingView = (state, publisherId) => {
     last_window_observed: publisherId ? getLastWindowObserved(publisherId) : null,
     publisher_caps: publisherId ? getPublisherCapConfig(publisherId) : null,
     last_window_billable: publisherId ? getLastWindowBillableCounts(publisherId) : null,
+    payout_reconciliation: publisherId ? getPayoutReconciliationFromState(readOnlyState, publisherId) : null,
+    payout_runs: publisherId ? payoutRuns.filter((run) => run.publisher_id === publisherId).slice(0, 10) : null,
     ledger_stats: publisherId ? getLedgerStatsFromState(readOnlyState, publisherId) : null,
+    ledger_entries: publisherId ? getLedgerEntriesFromState(readOnlyState, publisherId, 10) : null,
     selection_decisions: publisherId ? getSelectionHistory(publisherId, 50) : null,
     delivery_health: publisherId
       ? (() => {
@@ -2223,7 +2496,13 @@ const getReportingView = (state, publisherId) => {
             dlq: loadDeliveryDlqStats()
           };
         })()
-      : null
+      : null,
+    invoice_drafts: loadInvoiceDrafts(),
+    system_status: {
+      role: PROCESS_ROLE,
+      write_enabled: WRITE_ENABLED,
+      webhook_enabled: Boolean(WEBHOOK_URL)
+    }
   };
 };
 
@@ -3735,6 +4014,7 @@ loadKeys();
   loadBudgets();
   loadAggregates();
   loadLedger();
+  loadPayoutRuns();
   loadEvents();
   loadDeliveryState();
   resolveDeliveryIndex();
@@ -4409,7 +4689,7 @@ const server = http.createServer(async (req, res) => {
         }
         const includeSelections = url.searchParams.get("include_selections") === "true";
         const report = withProjectionRead("reports.view", () => getReportingView(projectionState, publisherId));
-        const reportErrors = validateSchema(reportSchema, report, "$");
+        const reportErrors = validateSchema(schemaRegistry.report, report, "$");
         if (reportErrors.length > 0) {
           console.log("report.schema.invalid", {
             publisher_id: publisherId,
@@ -4455,7 +4735,12 @@ const server = http.createServer(async (req, res) => {
       }
 
       if (req.method === "GET") {
-        if (url.pathname === "/ops.html" || url.pathname.startsWith("/ops.")) {
+        if (
+          url.pathname === "/ops.html" ||
+          url.pathname.startsWith("/ops.") ||
+          url.pathname === "/advertiser.html" ||
+          url.pathname.startsWith("/advertiser.")
+        ) {
           if (!authorizeOpsRequest(req, url, res)) {
             return;
           }

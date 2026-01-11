@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Flyback Advertiser</title>
+    <link rel="stylesheet" href="/ops.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="hero">
+        <div class="hero-top">
+          <div>
+            <p class="eyebrow">Flyback V5</p>
+            <h1>Advertiser Console</h1>
+            <p class="subhead">Ledger visibility and outcome summaries.</p>
+          </div>
+          <nav class="nav">
+            <a href="/ops.html" class="nav-link">Ops</a>
+            <a href="/advertiser.html" class="nav-link active">Advertiser</a>
+          </nav>
+        </div>
+      </header>
+
+      <section class="panel">
+        <div class="row">
+          <label class="label" for="apiKey">Advertiser API Key</label>
+          <input id="apiKey" type="password" placeholder="demo-advertiser-key" />
+          <button id="saveKey" class="btn">Save</button>
+          <button id="refresh" class="btn ghost">Refresh</button>
+        </div>
+        <div class="row meta">
+          <span id="status">Idle</span>
+          <span id="lastUpdated">-</span>
+        </div>
+        <div class="row meta">
+          <span id="freshness">Freshness: -</span>
+        </div>
+        <div id="banner" class="banner hidden"></div>
+        <div class="row">
+          <label class="label" for="campaignFilter">Campaign</label>
+          <select id="campaignFilter">
+            <option value="all">All campaigns</option>
+          </select>
+          <span id="campaignSummary">-</span>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="card">
+          <h2>Ledger Summary</h2>
+          <div class="sparkline-row">
+            <span class="sparkline-label">Payout trend</span>
+            <div id="payoutSpark" class="sparkline"></div>
+          </div>
+          <div class="controls">
+            <button id="exportLedger" class="btn ghost">Download Ledger CSV</button>
+          </div>
+          <div id="ledgerSummary" class="table"></div>
+        </div>
+        <div class="card">
+          <h2>Invoice Draft</h2>
+          <div id="invoiceDraft" class="table"></div>
+        </div>
+        <div class="card">
+          <h2>Delivery Health</h2>
+          <div class="sparkline-row">
+            <span class="sparkline-label">Delivery lag</span>
+            <div id="deliverySpark" class="sparkline"></div>
+          </div>
+          <div id="deliveryHealth" class="table"></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-header">
+          <div>
+            <h2>Aggregates</h2>
+            <p class="hint">Filter by campaign or creative.</p>
+          </div>
+          <div class="controls">
+            <input id="aggregateFilter" type="text" placeholder="Filter..." />
+            <select id="pageSize">
+              <option value="5">5</option>
+              <option value="10" selected>10</option>
+              <option value="20">20</option>
+            </select>
+            <button id="exportSelections" class="btn ghost">Export Selections</button>
+            <button id="prevPage" class="btn ghost">Prev</button>
+            <button id="nextPage" class="btn ghost">Next</button>
+          </div>
+        </div>
+        <div class="row meta">
+          <span id="aggregateCount">0 results</span>
+          <span id="pageInfo">Page 1</span>
+        </div>
+        <div id="aggregates" class="table"></div>
+      </section>
+
+      <section class="card">
+        <h2>Last 5 Selections</h2>
+        <div id="selections" class="table"></div>
+      </section>
+
+      <section class="card">
+        <h2>Top Ledger Entries</h2>
+        <div id="ledgerEntries" class="table"></div>
+      </section>
+
+      <section class="card">
+        <h2>Payout Runs</h2>
+        <div class="controls">
+          <select id="payoutStatusFilter">
+            <option value="all">All statuses</option>
+            <option value="pending">Pending</option>
+            <option value="sent">Sent</option>
+            <option value="settled">Settled</option>
+          </select>
+          <button id="exportPayouts" class="btn ghost">Download Payouts CSV</button>
+        </div>
+        <div id="payoutSummary" class="row meta"></div>
+        <div id="payoutRuns" class="table"></div>
+      </section>
+    </main>
+
+    <script type="module" src="/advertiser.js"></script>
+  </body>
+</html>

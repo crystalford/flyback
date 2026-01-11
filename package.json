@@ -13,7 +13,15 @@
     "webhook:replay": "node scripts/replay_webhook.js",
     "billing:preview": "node scripts/billing_preview.js",
     "billing:dry-run": "node scripts/billing_dry_run.js",
+    "billing:execute": "node scripts/billing_execute.js",
+    "billing:execute:dry-run": "node scripts/billing_execute.js --dry-run",
     "ops:snapshot": "node scripts/health_snapshot.js",
-    "events:export": "node scripts/export_events.js"
+    "events:export": "node scripts/export_events.js",
+    "billing:invoice-draft": "node scripts/invoice_draft.js",
+    "billing:invoice-audit": "node scripts/invoice_audit.js",
+    "billing:invoice-export": "node scripts/invoice_export_csv.js",
+    "billing:payout-update": "node scripts/payout_update.js",
+    "billing:payout-export": "node scripts/payout_export_csv.js",
+    "billing:payout-reconcile": "node scripts/payout_reconcile.js"
   }
 }

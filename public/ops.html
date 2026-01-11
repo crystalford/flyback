@@ -9,9 +9,17 @@
   <body>
     <main class="shell">
       <header class="hero">
-        <p class="eyebrow">Flyback V4 Ops</p>
-        <h1>Read-Only Control Room</h1>
-        <p class="subhead">Live aggregates and delivery insight from the active writer.</p>
+        <div class="hero-top">
+          <div>
+            <p class="eyebrow">Flyback V5</p>
+            <h1>Control Surface</h1>
+            <p class="subhead">Read-only observability for publishers and advertisers.</p>
+          </div>
+          <nav class="nav">
+            <a href="/ops.html" class="nav-link active">Ops</a>
+            <a href="/advertiser.html" class="nav-link">Advertiser</a>
+          </nav>
+        </div>
       </header>
 
       <section class="panel">
@@ -23,9 +31,13 @@
         </div>
         <div class="row meta">
           <span id="status">Idle</span>
-          <span id="publisherId">Publisher: —</span>
-          <span id="lastUpdated">—</span>
+          <span id="publisherId">Publisher: -</span>
+          <span id="lastUpdated">-</span>
         </div>
+        <div class="row meta">
+          <span id="freshness">Freshness: -</span>
+        </div>
+        <div id="lagBanner" class="banner hidden"></div>
       </section>
 
       <section class="grid">
@@ -42,6 +54,7 @@
                 <option value="10" selected>10</option>
                 <option value="20">20</option>
               </select>
+              <button id="exportCsv" class="btn ghost">Export CSV</button>
               <button id="prevPage" class="btn ghost">Prev</button>
               <button id="nextPage" class="btn ghost">Next</button>
             </div>
@@ -54,7 +67,13 @@
         </div>
         <div class="card">
           <h2>Ledger</h2>
+          <div class="sparkline-row">
+            <span class="sparkline-label">Payout trend</span>
+            <div id="payoutSpark" class="sparkline"></div>
+          </div>
           <div id="ledger" class="table"></div>
+          <h3 class="section-title">Top Ledger Entries</h3>
+          <div id="ledgerEntries" class="table"></div>
         </div>
       </section>
 
@@ -65,12 +84,47 @@
 
       <section class="card">
         <h2>Delivery Health</h2>
+        <div class="sparkline-row">
+          <span class="sparkline-label">Delivery lag</span>
+          <div id="deliverySpark" class="sparkline"></div>
+        </div>
+        <div class="controls">
+          <button id="exportDelivery" class="btn ghost">Download Delivery JSON</button>
+        </div>
         <div id="delivery" class="table"></div>
       </section>
 
       <section class="card">
         <h2>Delivery DLQ</h2>
         <div id="dlq" class="table"></div>
+      </section>
+
+      <section class="card">
+        <h2>Invoice Drafts</h2>
+        <div id="invoices" class="table"></div>
+      </section>
+
+      <section class="card">
+        <div class="card-header">
+          <h2>Payout Runs</h2>
+          <span id="payoutReconBadge" class="badge">Recon: -</span>
+        </div>
+        <div class="controls">
+          <select id="payoutStatusFilter">
+            <option value="all">All statuses</option>
+            <option value="pending">Pending</option>
+            <option value="sent">Sent</option>
+            <option value="settled">Settled</option>
+          </select>
+          <button id="exportPayouts" class="btn ghost">Download Payouts CSV</button>
+        </div>
+        <div id="payoutSummary" class="row meta"></div>
+        <div id="payoutRuns" class="table"></div>
+      </section>
+
+      <section class="card">
+        <h2>System Status</h2>
+        <div id="systemStatus" class="table"></div>
       </section>
     </main>
 

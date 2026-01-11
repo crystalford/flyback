@@ -12,6 +12,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.join(__dirname, "..");
 const dataDir = path.join(rootDir, "data");
+const schemaFile = path.join(rootDir, "schemas", "schemas.json");
 
 const copyDataDir = (destDir) => {
   fs.cpSync(dataDir, destDir, { recursive: true });
@@ -118,14 +119,87 @@ const waitFor = async (predicate, timeoutMs = 5000) => {
   return false;
 };
 
+const schemaTypeMatches = (type, value) => {
+  switch (type) {
+    case "object":
+      return value !== null && typeof value === "object" && !Array.isArray(value);
+    case "array":
+      return Array.isArray(value);
+    case "string":
+      return typeof value === "string";
+    case "number":
+      return Number.isFinite(value);
+    case "integer":
+      return Number.isInteger(value);
+    case "boolean":
+      return typeof value === "boolean";
+    case "null":
+      return value === null;
+    default:
+      return true;
+  }
+};
+
+const validateSchema = (schema, value, pathLabel = "$") => {
+  const errors = [];
+  if (!schema || typeof schema !== "object") {
+    return errors;
+  }
+  if (schema.enum && !schema.enum.includes(value)) {
+    errors.push(`${pathLabel}.enum`);
+    return errors;
+  }
+  if (schema.type) {
+    const types = Array.isArray(schema.type) ? schema.type : [schema.type];
+    const matches = types.some((type) => schemaTypeMatches(type, value));
+    if (!matches) {
+      errors.push(`${pathLabel}.type`);
+      return errors;
+    }
+  }
+  if (schema.type === "array" && Array.isArray(value) && schema.items) {
+    value.forEach((entry, index) => {
+      errors.push(...validateSchema(schema.items, entry, `${pathLabel}[${index}]`));
+    });
+  }
+  if (schema.type === "object" && value !== null && typeof value === "object" && !Array.isArray(value)) {
+    if (Array.isArray(schema.required)) {
+      schema.required.forEach((key) => {
+        if (!Object.prototype.hasOwnProperty.call(value, key)) {
+          errors.push(`${pathLabel}.required.${key}`);
+        }
+      });
+    }
+    const props = schema.properties || {};
+    Object.entries(props).forEach(([key, propSchema]) => {
+      if (Object.prototype.hasOwnProperty.call(value, key)) {
+        if (value[key] === undefined) {
+          return;
+        }
+        errors.push(...validateSchema(propSchema, value[key], `${pathLabel}.${key}`));
+      }
+    });
+  }
+  return errors;
+};
+
+const loadSchema = (key) => {
+  if (!fs.existsSync(schemaFile)) {
+    return null;
+  }
+  const raw = fs.readFileSync(schemaFile, "utf8");
+  if (!raw.trim()) {
+    return null;
+  }
+  const payload = JSON.parse(raw);
+  return payload[key] || null;
+};
+
 const assertWebhookPayloadShape = (payload) => {
-  assert.ok(payload);
-  assert.ok(Number.isFinite(payload.seq));
-  assert.equal(typeof payload.event_id, "string");
-  assert.equal(typeof payload.type, "string");
-  assert.equal(typeof payload.ts, "string");
-  assert.equal(typeof payload.delivery_ts, "string");
-  assert.ok(payload.payload && typeof payload.payload === "object");
+  const schema = loadSchema("delivery_payload");
+  assert.ok(schema, "delivery_payload schema missing");
+  const errors = validateSchema(schema, payload, "$");
+  assert.deepEqual(errors, []);
 };
 
 test("webhook delivers resolution.final payload", async () => {
@@ -315,6 +389,10 @@ test("delivery health endpoint returns cursor state", async () => {
     headers: { "x-api-key": "demo-publisher-key" }
   });
   assert.equal(health.status, 200);
+  const healthSchema = loadSchema("delivery_health");
+  assert.ok(healthSchema, "delivery_health schema missing");
+  const healthErrors = validateSchema(healthSchema, health.payload.delivery_health, "$");
+  assert.deepEqual(healthErrors, []);
   assert.ok(Number.isFinite(health.payload.delivery_health.last_delivered_seq));
   assert.ok(
     health.payload.delivery_health.last_attempt_at === null ||

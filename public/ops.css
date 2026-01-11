@@ -44,6 +44,37 @@ body {
   font-size: clamp(2rem, 4vw, 3rem);
 }
 
+.hero-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.nav {
+  display: flex;
+  gap: 12px;
+}
+
+.nav-link {
+  text-decoration: none;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--panel-border);
+  color: var(--ink);
+  background: white;
+  font-family: "Segoe UI", "Trebuchet MS", sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.nav-link.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .eyebrow {
   text-transform: uppercase;
   letter-spacing: 0.12em;
@@ -64,6 +95,20 @@ body {
   border: 1px solid var(--panel-border);
   background: var(--panel);
   box-shadow: var(--shadow);
+}
+
+.banner {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(212, 107, 50, 0.12);
+  color: var(--ink);
+  font-family: "Segoe UI", "Trebuchet MS", sans-serif;
+  font-size: 0.9rem;
+}
+
+.banner.hidden {
+  display: none;
 }
 
 .row {
@@ -143,6 +188,26 @@ input {
   justify-content: space-between;
 }
 
+.badge {
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: rgba(20, 32, 51, 0.08);
+  color: var(--ink);
+  font-family: "Segoe UI", "Trebuchet MS", sans-serif;
+}
+
+.badge.ok {
+  background: rgba(19, 140, 88, 0.16);
+  color: #0f6f45;
+}
+
+.badge.warn {
+  background: rgba(212, 107, 50, 0.2);
+  color: var(--accent);
+}
+
 .hint {
   margin: 4px 0 0;
   color: var(--ink-soft);
@@ -154,6 +219,29 @@ input {
   flex-wrap: wrap;
   gap: 10px;
   align-items: center;
+}
+
+.sparkline-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.sparkline-label {
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+
+.sparkline {
+  width: 120px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(20, 32, 51, 0.04);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 select {

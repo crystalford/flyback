@@ -495,7 +495,7 @@ Events are the only write source of truth. Projections are derived and rebuildab
 
 ## 16.18 Schemas & Validation (V4)
 
-JSON schemas define the shape of events, registry/policies, and report read models. Event appends and config loads validate against these schemas; unknown fields are tolerated for forward compatibility, but missing required fields are rejected.
+JSON schemas define the shape of events, registry/policies, and report read models. Schemas are loaded from `schemas/schemas.json` on startup (defaults apply if missing). Event appends and config loads validate against these schemas; unknown fields are tolerated for forward compatibility, but missing required fields are rejected.
 
 ## 16.19 External Integration Boundary (V4-C)
 
@@ -508,9 +508,11 @@ Replay DLQ entries with `WEBHOOK_URL=... npm run webhook:replay -- --dlq`.
 
 ## 16.20 Ops Console (V5)
 
-Visit `/ops.html` for a read-only control room that surfaces aggregates, ledger stats, and selection decisions. This is a viewer only and uses `/v1/reports` under the hood.
+Visit `/ops.html` for a read-only control room that surfaces aggregates, ledger stats, and selection decisions. This is a viewer only and uses `/v1/reports` under the hood. You can export aggregates as CSV and download delivery health JSON from the UI.
 
 Load it once with `/ops.html?api_key=YOUR_KEY` to mint a short-lived signed cookie for assets. The header includes the publisher id when available.
+
+The advertiser view lives at `/advertiser.html` and uses the same signed-cookie flow. It surfaces invoice draft totals and the last 5 selections.
 
 Delivery health is exposed via `/v1/reports` as `delivery_health`, including last delivered seq, last event seq, delivery lag, last attempt time, retry count, and DLQ stats.
 
@@ -526,11 +528,43 @@ Delivery health is also available via `GET /v1/delivery` for ops tooling. Set `D
 
 `npm run billing:dry-run` validates ledger payout calculations against registry rev-share settings (read-only).
 
-## 16.23 Ops Snapshot (V5)
+## 16.23 Invoice Drafts (V5)
+
+`npm run billing:invoice-draft` writes read-only draft invoices grouped by advertiser to `data/invoices/`.
+
+## 16.24 Invoice Audit (V5)
+
+`npm run billing:invoice-audit` compares invoice draft totals against ledger totals per advertiser.
+
+## 16.25 Invoice Export (V5)
+
+`npm run billing:invoice-export` writes `data/invoice_drafts.csv` from draft invoices.
+
+## 16.26 Billing Execution (V5)
+
+`npm run billing:execute` batches new billable ledger entries into `data/payouts.json` as pending payout runs (no external payout execution). Use `npm run billing:execute:dry-run` to preview without writing.
+
+Payout runs are surfaced in `/v1/reports` as `payout_runs` (read-only) for ops visibility.
+
+## 16.27 Payout Status (V5)
+
+`npm run billing:payout-update -- --run-id <id> --status <pending|sent|settled>` updates payout run status in `data/payouts.json` (manual bookkeeping only).
+
+## 16.28 Payout Export (V5)
+
+`npm run billing:payout-export` writes `data/payouts.csv` from payout runs.
+
+## 16.29 Payout Reconciliation (V5)
+
+`npm run billing:payout-reconcile` compares payout runs against ledger entry sums and flags missing or mismatched entries.
+
+Payout reconciliation status is surfaced in `/v1/reports` as `payout_reconciliation` for ops monitoring.
+
+## 16.30 Ops Snapshot (V5)
 
 `npm run ops:snapshot` prints a compact health snapshot (registry counts, budgets, aggregates window, ledger totals, delivery state + DLQ).
 
-## 16.24 Event Export (V5)
+## 16.31 Event Export (V5)
 
 `npm run events:export -- --from 1 --to 500 --out ./events.ndjson` exports event ranges for audit and writes a `sha256` sidecar file.
 

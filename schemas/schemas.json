@@ -1,0 +1,774 @@
+{
+  "version": 1,
+  "policy": {
+    "schema_version": 1,
+    "type": "object",
+    "properties": {
+      "allowed_demand_types": { "type": "array", "items": { "type": "string" } },
+      "derived_value_floor": { "type": "number" },
+      "demand_priority": { "type": "array", "items": { "type": "string" } },
+      "selection_mode": { "type": "string", "enum": ["raw", "weighted"] },
+      "floor_type": { "type": "string", "enum": ["raw", "weighted"] },
+      "floor_value_per_1k": { "type": "number" },
+      "rev_share_bps": { "type": "number" }
+    },
+    "additionalProperties": true
+  },
+  "registry": {
+    "schema_version": 1,
+    "type": "object",
+    "required": ["version", "advertisers", "publishers", "campaigns", "creatives", "policies"],
+    "properties": {
+      "version": { "type": "integer" },
+      "advertisers": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "object",
+          "required": ["advertiser_id", "campaign_ids"],
+          "properties": {
+            "advertiser_id": { "type": "string" },
+            "campaign_ids": { "type": "array", "items": { "type": "string" } }
+          },
+          "additionalProperties": true
+        }
+      },
+      "publishers": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "object",
+          "required": ["publisher_id", "campaign_ids"],
+          "properties": {
+            "publisher_id": { "type": "string" },
+            "campaign_ids": { "type": "array", "items": { "type": "string" } }
+          },
+          "additionalProperties": true
+        }
+      },
+      "campaigns": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "object",
+          "required": ["campaign_id", "publisher_id", "advertiser_id", "creative_ids"],
+          "properties": {
+            "campaign_id": { "type": "string" },
+            "publisher_id": { "type": "string" },
+            "advertiser_id": { "type": "string" },
+            "creative_ids": { "type": "array", "items": { "type": "string" } },
+            "outcome_weights": { "type": "object", "additionalProperties": { "type": "number" } },
+            "caps": {
+              "type": "object",
+              "properties": {
+                "max_outcomes": { "type": "number" },
+                "max_weighted_value": { "type": "number" }
+              },
+              "additionalProperties": true
+            },
+            "publisher_rev_share_bps": { "type": "number" }
+          },
+          "additionalProperties": true
+        }
+      },
+      "creatives": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "object",
+          "required": ["creative_id", "creative_url", "sizes"],
+          "properties": {
+            "creative_id": { "type": "string" },
+            "creative_url": { "type": "string" },
+            "sizes": { "type": "array", "items": { "type": "string" } },
+            "demand_type": { "type": "string" }
+          },
+          "additionalProperties": true
+        }
+      },
+      "policies": {
+        "type": "object",
+        "additionalProperties": {
+          "schema_version": 1,
+          "type": "object",
+          "properties": {
+            "allowed_demand_types": { "type": "array", "items": { "type": "string" } },
+            "derived_value_floor": { "type": "number" },
+            "demand_priority": { "type": "array", "items": { "type": "string" } },
+            "selection_mode": { "type": "string", "enum": ["raw", "weighted"] },
+            "floor_type": { "type": "string", "enum": ["raw", "weighted"] },
+            "floor_value_per_1k": { "type": "number" },
+            "rev_share_bps": { "type": "number" }
+          },
+          "additionalProperties": true
+        }
+      }
+    },
+    "additionalProperties": true
+  },
+  "keys": {
+    "schema_version": 1,
+    "type": "object",
+    "required": ["version", "publishers", "advertisers"],
+    "properties": {
+      "version": { "type": "integer" },
+      "publishers": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["publisher_id", "api_key"],
+          "properties": {
+            "publisher_id": { "type": "string" },
+            "api_key": { "type": "string" }
+          },
+          "additionalProperties": true
+        }
+      },
+      "advertisers": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["advertiser_id", "api_key"],
+          "properties": {
+            "advertiser_id": { "type": "string" },
+            "api_key": { "type": "string" }
+          },
+          "additionalProperties": true
+        }
+      }
+    },
+    "additionalProperties": true
+  },
+  "event": {
+    "schema_version": 1,
+    "type": "object",
+    "required": ["seq", "event_id", "ts", "type", "payload"],
+    "properties": {
+      "seq": { "type": "integer" },
+      "event_id": { "type": "string" },
+      "ts": { "type": "string" },
+      "type": { "type": "string" },
+      "payload": { "type": "object" }
+    },
+    "additionalProperties": true
+  },
+  "delivery_state": {
+    "schema_version": 1,
+    "type": "object",
+    "required": ["last_delivered_seq"],
+    "properties": {
+      "last_delivered_seq": { "type": "integer" },
+      "updated_at": { "type": "string" },
+      "last_attempt_at": { "type": ["string", "null"] },
+      "retry_count": { "type": "number" }
+    },
+    "additionalProperties": true
+  },
+  "dlq_entry": {
+    "schema_version": 1,
+    "type": "object",
+    "required": ["failed_at", "seq", "event_id", "status", "error", "payload"],
+    "properties": {
+      "failed_at": { "type": "string" },
+      "seq": { "type": "integer" },
+      "event_id": { "type": "string" },
+      "status": { "type": "number" },
+      "error": { "type": ["string", "null"] },
+      "payload": { "type": "object" }
+    },
+    "additionalProperties": true
+  },
+  "delivery_health": {
+    "schema_version": 1,
+    "type": "object",
+    "properties": {
+      "last_delivered_seq": { "type": "number" },
+      "last_attempt_at": { "type": ["string", "null"] },
+      "retry_count": { "type": "number" },
+      "last_event_seq": { "type": "number" },
+      "delivery_lag": { "type": "number" },
+      "dlq": {
+        "type": "object",
+        "required": ["count", "last_entry"],
+        "properties": {
+          "count": { "type": "number" },
+          "last_entry": {
+            "type": ["object", "null"],
+            "properties": {
+              "failed_at": { "type": "string" },
+              "seq": { "type": "number" },
+              "event_id": { "type": "string" },
+              "status": { "type": "number" },
+              "error": { "type": ["string", "null"] }
+            },
+            "additionalProperties": true
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "additionalProperties": true
+  },
+  "token": {
+    "schema_version": 1,
+    "type": "object",
+    "required": ["token_id", "scope"],
+    "properties": {
+      "token_id": { "type": "string" },
+      "scope": {
+        "type": "object",
+        "required": ["campaign_id", "publisher_id", "creative_id"],
+        "properties": {
+          "campaign_id": { "type": "string" },
+          "publisher_id": { "type": "string" },
+          "creative_id": { "type": "string" }
+        },
+        "additionalProperties": true
+      }
+    },
+    "additionalProperties": true
+  },
+  "ledger_entry": {
+    "schema_version": 1,
+    "type": "object",
+    "required": [
+      "entry_id",
+      "created_at",
+      "token_id",
+      "campaign_id",
+      "advertiser_id",
+      "publisher_id",
+      "creative_id",
+      "window_id",
+      "outcome_type",
+      "raw_value",
+      "weighted_value",
+      "billable",
+      "payout_cents",
+      "rev_share_bps",
+      "final_stage"
+    ],
+    "properties": {
+      "entry_id": { "type": "string" },
+      "created_at": { "type": "string" },
+      "token_id": { "type": "string" },
+      "campaign_id": { "type": "string" },
+      "advertiser_id": { "type": "string" },
+      "publisher_id": { "type": "string" },
+      "creative_id": { "type": "string" },
+      "window_id": { "type": "string" },
+      "outcome_type": { "type": "string" },
+      "raw_value": { "type": "number" },
+      "weighted_value": { "type": "number" },
+      "billable": { "type": "boolean" },
+      "payout_cents": { "type": "number" },
+      "rev_share_bps": { "type": "number" },
+      "final_stage": { "type": "string" }
+    },
+    "additionalProperties": true
+  },
+  "payout_run": {
+    "schema_version": 1,
+    "type": "object",
+    "required": [
+      "run_id",
+      "created_at",
+      "publisher_id",
+      "window_id",
+      "entry_count",
+      "payout_cents",
+      "entry_ids",
+      "status"
+    ],
+    "properties": {
+      "run_id": { "type": "string" },
+      "created_at": { "type": "string" },
+      "publisher_id": { "type": "string" },
+      "window_id": { "type": "string" },
+      "entry_count": { "type": "number" },
+      "payout_cents": { "type": "number" },
+      "entry_ids": { "type": "array", "items": { "type": "string" } },
+      "status": { "type": "string" }
+    },
+    "additionalProperties": true
+  },
+  "payout_reconciliation": {
+    "schema_version": 1,
+    "type": "object",
+    "required": ["status", "runs_checked", "mismatches", "missing_entries", "unassigned_entries", "checked_at"],
+    "properties": {
+      "status": { "type": "string" },
+      "runs_checked": { "type": "number" },
+      "mismatches": { "type": "number" },
+      "missing_entries": { "type": "number" },
+      "unassigned_entries": { "type": "number" },
+      "checked_at": { "type": "string" }
+    },
+    "additionalProperties": true
+  },
+  "delivery_payload": {
+    "schema_version": 1,
+    "type": "object",
+    "required": ["delivery_ts", "seq", "event_id", "type", "ts", "payload"],
+    "properties": {
+      "delivery_ts": { "type": "string" },
+      "seq": { "type": "number" },
+      "event_id": { "type": "string" },
+      "type": { "type": "string" },
+      "ts": { "type": "string" },
+      "payload": { "type": "object" }
+    },
+    "additionalProperties": true
+  },
+  "event_payloads": {
+    "intent.created": {
+      "schema_version": 1,
+      "type": "object",
+      "required": ["token"],
+      "properties": {
+        "token": {
+          "schema_version": 1,
+          "type": "object",
+          "required": ["token_id", "scope"],
+          "properties": {
+            "token_id": { "type": "string" },
+            "scope": {
+              "type": "object",
+              "required": ["campaign_id", "publisher_id", "creative_id"],
+              "properties": {
+                "campaign_id": { "type": "string" },
+                "publisher_id": { "type": "string" },
+                "creative_id": { "type": "string" }
+              },
+              "additionalProperties": true
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "impression.recorded": {
+      "schema_version": 1,
+      "type": "object",
+      "required": ["scope", "occurred_at"],
+      "properties": {
+        "scope": {
+          "type": "object",
+          "required": ["campaign_id", "publisher_id", "creative_id"],
+          "properties": {
+            "campaign_id": { "type": "string" },
+            "publisher_id": { "type": "string" },
+            "creative_id": { "type": "string" }
+          },
+          "additionalProperties": true
+        },
+        "occurred_at": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "resolution.partial": {
+      "schema_version": 1,
+      "type": "object",
+      "required": ["token_id", "stage", "resolved_at", "resolved_value"],
+      "properties": {
+        "token_id": { "type": "string" },
+        "stage": { "type": "string" },
+        "resolved_at": { "type": "string" },
+        "resolved_value": { "type": "number" },
+        "outcome_type": { "type": ["string", "null"] }
+      },
+      "additionalProperties": true
+    },
+    "resolution.final": {
+      "schema_version": 1,
+      "type": "object",
+      "required": ["token_id", "stage", "resolved_at", "resolved_value", "outcome_type", "weighted_value", "billable"],
+      "properties": {
+        "token_id": { "type": "string" },
+        "stage": { "type": "string" },
+        "resolved_at": { "type": "string" },
+        "resolved_value": { "type": "number" },
+        "outcome_type": { "type": "string" },
+        "weighted_value": { "type": "number" },
+        "billable": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    },
+    "budget.decrement": {
+      "schema_version": 1,
+      "type": "object",
+      "required": ["token_id", "campaign_id", "amount"],
+      "properties": {
+        "token_id": { "type": "string" },
+        "campaign_id": { "type": "string" },
+        "amount": { "type": "number" }
+      },
+      "additionalProperties": true
+    },
+    "ledger.append": {
+      "schema_version": 1,
+      "type": "object",
+      "required": ["entry"],
+      "properties": {
+        "entry": {
+          "schema_version": 1,
+          "type": "object",
+          "required": [
+            "entry_id",
+            "created_at",
+            "token_id",
+            "campaign_id",
+            "advertiser_id",
+            "publisher_id",
+            "creative_id",
+            "window_id",
+            "outcome_type",
+            "raw_value",
+            "weighted_value",
+            "billable",
+            "payout_cents",
+            "rev_share_bps",
+            "final_stage"
+          ],
+          "properties": {
+            "entry_id": { "type": "string" },
+            "created_at": { "type": "string" },
+            "token_id": { "type": "string" },
+            "campaign_id": { "type": "string" },
+            "advertiser_id": { "type": "string" },
+            "publisher_id": { "type": "string" },
+            "creative_id": { "type": "string" },
+            "window_id": { "type": "string" },
+            "outcome_type": { "type": "string" },
+            "raw_value": { "type": "number" },
+            "weighted_value": { "type": "number" },
+            "billable": { "type": "boolean" },
+            "payout_cents": { "type": "number" },
+            "rev_share_bps": { "type": "number" },
+            "final_stage": { "type": "string" }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "window.reset": {
+      "schema_version": 1,
+      "type": "object",
+      "properties": {
+        "reason": { "type": "string" },
+        "previous_window": { "type": "object", "additionalProperties": true },
+        "new_window": { "type": "object", "additionalProperties": true }
+      },
+      "additionalProperties": true
+    }
+  },
+  "report_row": {
+    "schema_version": 1,
+    "type": "object",
+    "required": [
+      "campaign_id",
+      "publisher_id",
+      "creative_id",
+      "impressions",
+      "intents",
+      "resolvedIntents",
+      "intent_rate",
+      "resolution_rate",
+      "derived_value_per_1k"
+    ],
+    "properties": {
+      "campaign_id": { "type": "string" },
+      "publisher_id": { "type": "string" },
+      "creative_id": { "type": "string" },
+      "impressions": { "type": "number" },
+      "intents": { "type": "number" },
+      "resolvedIntents": { "type": "number" },
+      "intent_rate": { "type": "number" },
+      "resolution_rate": { "type": "number" },
+      "derived_value_per_1k": { "type": "number" }
+    },
+    "additionalProperties": true
+  },
+  "report": {
+    "schema_version": 1,
+    "type": "object",
+    "required": [
+      "aggregates",
+      "publisher_floor",
+      "last_window_observed",
+      "publisher_caps",
+      "last_window_billable",
+      "payout_reconciliation",
+      "payout_runs",
+      "ledger_stats",
+      "ledger_entries",
+      "selection_decisions",
+      "delivery_health",
+      "invoice_drafts",
+      "system_status"
+    ],
+    "properties": {
+      "aggregates": {
+        "type": "array",
+        "items": {
+          "schema_version": 1,
+          "type": "object",
+          "required": [
+            "campaign_id",
+            "publisher_id",
+            "creative_id",
+            "impressions",
+            "intents",
+            "resolvedIntents",
+            "intent_rate",
+            "resolution_rate",
+            "derived_value_per_1k"
+          ],
+          "properties": {
+            "campaign_id": { "type": "string" },
+            "publisher_id": { "type": "string" },
+            "creative_id": { "type": "string" },
+            "impressions": { "type": "number" },
+            "intents": { "type": "number" },
+            "resolvedIntents": { "type": "number" },
+            "intent_rate": { "type": "number" },
+            "resolution_rate": { "type": "number" },
+            "derived_value_per_1k": { "type": "number" }
+          },
+          "additionalProperties": true
+        }
+      },
+      "publisher_floor": {
+        "type": ["object", "null"],
+        "properties": {
+          "selection_mode": { "type": "string" },
+          "floor_type": { "type": "string" },
+          "floor_value_per_1k": { "type": "number" }
+        },
+        "additionalProperties": true
+      },
+      "last_window_observed": {
+        "type": ["object", "null"],
+        "properties": {
+          "window_id": { "type": ["string", "null"] },
+          "impressions": { "type": "number" },
+          "raw_value_per_1k": { "type": "number" },
+          "weighted_value_per_1k": { "type": "number" }
+        },
+        "additionalProperties": true
+      },
+      "publisher_caps": {
+        "type": ["array", "null"],
+        "items": {
+          "type": "object",
+          "required": ["campaign_id", "advertiser_id", "caps"],
+          "properties": {
+            "campaign_id": { "type": "string" },
+            "advertiser_id": { "type": ["string", "null"] },
+            "caps": { "type": ["object", "null"], "additionalProperties": true }
+          },
+          "additionalProperties": true
+        }
+      },
+      "last_window_billable": {
+        "type": ["object", "null"],
+        "properties": {
+          "window_id": { "type": ["string", "null"] },
+          "billable_count": { "type": "number" },
+          "non_billable_count": { "type": "number" }
+        },
+        "additionalProperties": true
+      },
+      "payout_reconciliation": {
+        "type": ["object", "null"],
+        "properties": {
+          "status": { "type": "string" },
+          "runs_checked": { "type": "number" },
+          "mismatches": { "type": "number" },
+          "missing_entries": { "type": "number" },
+          "unassigned_entries": { "type": "number" },
+          "checked_at": { "type": "string" }
+        },
+        "additionalProperties": true
+      },
+      "payout_runs": {
+        "type": ["array", "null"],
+        "items": {
+          "schema_version": 1,
+          "type": "object",
+          "required": [
+            "run_id",
+            "created_at",
+            "publisher_id",
+            "window_id",
+            "entry_count",
+            "payout_cents",
+            "entry_ids",
+            "status"
+          ],
+          "properties": {
+            "run_id": { "type": "string" },
+            "created_at": { "type": "string" },
+            "publisher_id": { "type": "string" },
+            "window_id": { "type": "string" },
+            "entry_count": { "type": "number" },
+            "payout_cents": { "type": "number" },
+            "entry_ids": { "type": "array", "items": { "type": "string" } },
+            "status": { "type": "string" }
+          },
+          "additionalProperties": true
+        }
+      },
+      "ledger_stats": {
+        "type": ["object", "null"],
+        "properties": {
+          "window_id": { "type": ["string", "null"] },
+          "window_payout_cents_estimate": { "type": "number" },
+          "lifetime_payout_cents_estimate": { "type": "number" },
+          "window_entry_count": { "type": "number" },
+          "lifetime_entry_count": { "type": "number" }
+        },
+        "additionalProperties": true
+      },
+      "ledger_entries": {
+        "type": ["array", "null"],
+        "items": {
+          "schema_version": 1,
+          "type": "object",
+          "required": [
+            "entry_id",
+            "created_at",
+            "token_id",
+            "campaign_id",
+            "advertiser_id",
+            "publisher_id",
+            "creative_id",
+            "window_id",
+            "outcome_type",
+            "raw_value",
+            "weighted_value",
+            "billable",
+            "payout_cents",
+            "rev_share_bps",
+            "final_stage"
+          ],
+          "properties": {
+            "entry_id": { "type": "string" },
+            "created_at": { "type": "string" },
+            "token_id": { "type": "string" },
+            "campaign_id": { "type": "string" },
+            "advertiser_id": { "type": "string" },
+            "publisher_id": { "type": "string" },
+            "creative_id": { "type": "string" },
+            "window_id": { "type": "string" },
+            "outcome_type": { "type": "string" },
+            "raw_value": { "type": "number" },
+            "weighted_value": { "type": "number" },
+            "billable": { "type": "boolean" },
+            "payout_cents": { "type": "number" },
+            "rev_share_bps": { "type": "number" },
+            "final_stage": { "type": "string" }
+          },
+          "additionalProperties": true
+        }
+      },
+      "selection_decisions": {
+        "type": ["array", "null"],
+        "items": {
+          "type": "object",
+          "required": ["timestamp", "publisher_id", "selection_mode", "metric_used", "candidates", "chosen_creative"],
+          "properties": {
+            "timestamp": { "type": "string" },
+            "publisher_id": { "type": "string" },
+            "selection_mode": { "type": "string" },
+            "metric_used": { "type": "string" },
+            "candidates": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["campaign_id", "creative_id", "demand_type", "used_metric", "used_value_per_1k"],
+                "properties": {
+                  "campaign_id": { "type": "string" },
+                  "creative_id": { "type": "string" },
+                  "demand_type": { "type": "string" },
+                  "used_metric": { "type": "string" },
+                  "used_value_per_1k": { "type": "number" }
+                },
+                "additionalProperties": true
+              }
+            },
+            "chosen_creative": {
+              "type": "object",
+              "required": ["campaign_id", "creative_id", "demand_type"],
+              "properties": {
+                "campaign_id": { "type": "string" },
+                "creative_id": { "type": "string" },
+                "demand_type": { "type": "string" }
+              },
+              "additionalProperties": true
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "delivery_health": {
+        "type": ["object", "null"],
+        "properties": {
+          "last_delivered_seq": { "type": "number" },
+          "last_attempt_at": { "type": ["string", "null"] },
+          "retry_count": { "type": "number" },
+          "last_event_seq": { "type": "number" },
+          "delivery_lag": { "type": "number" },
+          "dlq": {
+            "type": "object",
+            "required": ["count", "last_entry"],
+            "properties": {
+              "count": { "type": "number" },
+              "last_entry": {
+                "type": ["object", "null"],
+                "properties": {
+                  "failed_at": { "type": "string" },
+                  "seq": { "type": "number" },
+                  "event_id": { "type": "string" },
+                  "status": { "type": "number" },
+                  "error": { "type": ["string", "null"] }
+                },
+                "additionalProperties": true
+              }
+            },
+            "additionalProperties": true
+          }
+        },
+        "additionalProperties": true
+      },
+      "invoice_drafts": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["filename", "advertiser_id", "payout_cents", "entry_count", "created_at"],
+          "properties": {
+            "filename": { "type": "string" },
+            "advertiser_id": { "type": "string" },
+            "payout_cents": { "type": "number" },
+            "entry_count": { "type": "number" },
+            "created_at": { "type": "string" }
+          },
+          "additionalProperties": true
+        }
+      },
+      "system_status": {
+        "type": "object",
+        "required": ["role", "write_enabled", "webhook_enabled"],
+        "properties": {
+          "role": { "type": "string" },
+          "write_enabled": { "type": "boolean" },
+          "webhook_enabled": { "type": "boolean" }
+        },
+        "additionalProperties": true
+      }
+    },
+    "additionalProperties": true
+  }
+}
