@@ -1,6 +1,7 @@
 const apiKeyInput = document.getElementById("apiKey");
 const saveKeyButton = document.getElementById("saveKey");
 const refreshButton = document.getElementById("refresh");
+const useDemoKeyButton = document.getElementById("useDemoKey");
 const statusEl = document.getElementById("status");
 const lastUpdatedEl = document.getElementById("lastUpdated");
 const freshnessEl = document.getElementById("freshness");
@@ -390,6 +391,12 @@ const refresh = async () => {
 };
 
 saveKeyButton.addEventListener("click", () => {
+  localStorage.setItem("flyback_advertiser_key", apiKeyInput.value.trim());
+  refresh();
+});
+
+useDemoKeyButton.addEventListener("click", () => {
+  apiKeyInput.value = "demo-advertiser-key";
   localStorage.setItem("flyback_advertiser_key", apiKeyInput.value.trim());
   refresh();
 });
