@@ -1002,7 +1002,7 @@ const applyRateLimit = (req, res) => {
   if (bucket.count > RATE_LIMIT_MAX) {
     res.writeHead(429, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ error: "rate_limited" }));
-    console.log("rate.limit", { ip, count: bucket.count });
+    console.log("rate.limit", { ip, count: bucket.count, request_id: req.request_id || null });
     return false;
   }
   return true;
@@ -1056,6 +1056,7 @@ const authorizeOpsRequest = (req, url, res) => {
     issueOpsCookie(res, publisherId);
     return true;
   }
+  logAuth("auth.reject", "publisher", null, "missing_key", req.request_id || null);
   sendJson(res, 401, { error: "auth_required" });
   return false;
 };
@@ -2780,11 +2781,12 @@ const rejectRequest = (res, endpoint, reason, details = {}) => {
   sendJson(res, 400, { error: reason });
 };
 
-const logAuth = (event, actorType, actorId, reason) => {
+const logAuth = (event, actorType, actorId, reason, requestId = null) => {
   console.log(event, {
     actor_type: actorType,
     actor_id: actorId,
-    reason
+    reason,
+    request_id: requestId
   });
 };
 
@@ -2810,22 +2812,22 @@ const authorizePublisher = (req, res, publisherId) => {
   const providedKey = extractApiKey(req);
   const apiKey = providedKey || defaultPublisherKey;
   if (!apiKey) {
-    logAuth("auth.reject", "publisher", publisherId, "missing_key");
+    logAuth("auth.reject", "publisher", publisherId, "missing_key", req.request_id || null);
     sendJson(res, 401, { error: "auth_required" });
     return null;
   }
   const actorId = publisherKeyIndex.get(apiKey);
   if (!actorId) {
-    logAuth("auth.reject", "publisher", publisherId, "invalid_key");
+    logAuth("auth.reject", "publisher", publisherId, "invalid_key", req.request_id || null);
     sendJson(res, 401, { error: "auth_invalid" });
     return null;
   }
   if (publisherId && actorId !== publisherId) {
-    logAuth("auth.reject", "publisher", actorId, "publisher_mismatch");
+    logAuth("auth.reject", "publisher", actorId, "publisher_mismatch", req.request_id || null);
     sendJson(res, 403, { error: "auth_mismatch" });
     return null;
   }
-  logAuth("auth.accept", "publisher", actorId, providedKey ? "api_key" : "default_key");
+  logAuth("auth.accept", "publisher", actorId, providedKey ? "api_key" : "default_key", req.request_id || null);
   return actorId;
 };
 
@@ -2833,17 +2835,17 @@ const authorizeAdvertiser = (req, res, campaignId = null) => {
   const providedKey = extractApiKey(req);
   const apiKey = providedKey || defaultAdvertiserKey;
   if (!apiKey) {
-    logAuth("auth.reject", "advertiser", campaignId, "missing_key");
+    logAuth("auth.reject", "advertiser", campaignId, "missing_key", req.request_id || null);
     sendJson(res, 401, { error: "auth_required" });
     return null;
   }
   const actorId = advertiserKeyIndex.get(apiKey);
   if (!actorId) {
-    logAuth("auth.reject", "advertiser", campaignId, "invalid_key");
+    logAuth("auth.reject", "advertiser", campaignId, "invalid_key", req.request_id || null);
     sendJson(res, 401, { error: "auth_invalid" });
     return null;
   }
-  logAuth("auth.accept", "advertiser", actorId, providedKey ? "api_key" : "default_key");
+  logAuth("auth.accept", "advertiser", actorId, providedKey ? "api_key" : "default_key", req.request_id || null);
   return actorId;
 };
 
@@ -4674,7 +4676,7 @@ const handlePostback = (req, url, res) => {
     return;
   }
   if (!isNonEmptyString(campaign.advertiser_id) || campaign.advertiser_id !== advertiserId) {
-    logAuth("auth.reject", "advertiser", advertiserId, "campaign_mismatch");
+    logAuth("auth.reject", "advertiser", advertiserId, "campaign_mismatch", req.request_id || null);
     sendJson(res, 403, { error: "auth_mismatch" });
     return;
   }
@@ -4928,6 +4930,9 @@ const serveStatic = (res, filePath) => {
 
 const server = http.createServer(async (req, res) => {
   try {
+    const incomingId = req.headers["x-request-id"];
+    req.request_id = typeof incomingId === "string" && incomingId.trim() ? incomingId.trim() : randomUUID();
+    res.setHeader("X-Request-Id", req.request_id);
     const startAt = Date.now();
     res.on("finish", () => {
       const durationMs = Date.now() - startAt;
@@ -4936,7 +4941,8 @@ const server = http.createServer(async (req, res) => {
         path: req.url,
         status: res.statusCode,
         duration_ms: durationMs,
-        ip: getClientIp(req)
+        ip: getClientIp(req),
+        request_id: req.request_id
       });
     });
     res.setHeader("X-Content-Type-Options", "nosniff");

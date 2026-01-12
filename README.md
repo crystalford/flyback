@@ -585,6 +585,7 @@ Payout reconciliation status is surfaced in `/v1/reports` as `payout_reconciliat
 - Environment validation logs configuration warnings on startup.
 - Security headers are enabled (CSP, frame denial, referrer policy, nosniff).
 - Basic in-memory rate limiting is enabled (set `RATE_LIMIT_BYPASS=true` to disable).
+- Every request receives a `X-Request-Id` header for log correlation.
 
 ## 16.2 V2 Config Versions & Migrations
 
