@@ -591,6 +591,14 @@ Payout reconciliation status is surfaced in `/v1/reports` as `payout_reconciliat
 
 `npm run logs:export -- --in ./server.log --out ./audit.log --include request_id` filters a log file into a smaller audit slice.
 
+## 16.35 Ops Export Bundle (V5)
+
+`npm run ops:export` writes a consolidated export bundle into `data/exports/` (payouts, statements, invoice CSVs, ledger snapshot).
+
+## 16.36 Log Rotation Note (V5)
+
+Rotate logs outside the app (systemd, logrotate, or container runtime). Keep a copy of `server.log` if you need to run `logs:export`.
+
 ## 16.2 V2 Config Versions & Migrations
 
 Each config file includes a `version` integer. On startup, the server detects the version, runs in-process migrations in order, then validates the migrated shape. If a migration is missing or the version is ahead of the code, startup fails with a clear log.
