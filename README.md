@@ -612,6 +612,10 @@ To add a new migration:
 
 Open `/health.html?api_key=demo-publisher-key` to view uptime, delivery, and window metrics.
 
+### Health check endpoint
+
+`GET /healthz` returns a minimal JSON payload for container health checks.
+
 ## 18. Environment Reference
 
 Required for public hosting:

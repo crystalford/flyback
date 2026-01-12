@@ -4967,6 +4967,19 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (req.method === "GET" && url.pathname === "/healthz") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          status: "ok",
+          role: PROCESS_ROLE,
+          write_enabled: WRITE_ENABLED,
+          webhook_enabled: Boolean(WEBHOOK_URL)
+        })
+      );
+      return;
+    }
+
       if (req.method === "GET" && url.pathname === "/v1/reports") {
         const publisherId = authorizePublisher(req, res, null);
         if (!publisherId) {

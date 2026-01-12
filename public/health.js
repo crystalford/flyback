@@ -6,6 +6,9 @@ const lastUpdatedEl = document.getElementById("lastUpdated");
 const systemStatusEl = document.getElementById("systemStatus");
 const deliveryStatusEl = document.getElementById("deliveryStatus");
 const windowStatusEl = document.getElementById("windowStatus");
+const badgeUrlEl = document.getElementById("badgeUrl");
+const badgeMarkdownEl = document.getElementById("badgeMarkdown");
+const copyBadgeEl = document.getElementById("copyBadge");
 
 const storedKey = localStorage.getItem("flyback_api_key") || "";
 apiKeyInput.value = storedKey;
@@ -78,6 +81,10 @@ const refresh = async () => {
     );
 
     lastUpdatedEl.textContent = new Date().toLocaleTimeString();
+    const baseUrl = window.location.origin;
+    const badgeUrl = `${baseUrl}/healthz`;
+    badgeUrlEl.textContent = badgeUrl;
+    badgeMarkdownEl.textContent = `![status](${badgeUrl})`;
     setStatus("OK");
   } catch (error) {
     setStatus(`Error: ${error.message}`);
@@ -91,6 +98,23 @@ saveKeyButton.addEventListener("click", () => {
 
 refreshButton.addEventListener("click", () => {
   refresh();
+});
+
+copyBadgeEl.addEventListener("click", async () => {
+  const text = badgeMarkdownEl.textContent || "";
+  if (!text) {
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand("copy");
+    document.body.removeChild(textarea);
+  }
 });
 
 refresh();
