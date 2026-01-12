@@ -1,111 +1,244 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Flyback Network Console</title>
+    <title>Flyback Network</title>
     <link rel="stylesheet" href="/ops.css" />
   </head>
   <body>
-    <main class="shell">
-      <header class="hero">
-        <div class="hero-top">
+    <div class="page">
+      <header class="site-header">
+        <div class="brand">
+          <span class="brand-mark">Fb</span>
           <div>
-            <p class="eyebrow">Flyback</p>
-            <h1>Performance Network Prototype</h1>
-            <p class="subhead">Real-time intent capture, routing, and payout visibility.</p>
+            <p class="brand-name">Flyback</p>
+            <p class="brand-tag">Performance Network</p>
           </div>
-          <nav class="nav">
-            <a href="/ops.html" class="nav-link">Ops</a>
-            <a href="/advertiser.html" class="nav-link">Advertiser</a>
-            <a href="/health.html" class="nav-link">Status</a>
-          </nav>
         </div>
-        <div class="controls">
+        <nav class="nav">
+          <a href="/publisher.html" class="nav-link">Publishers</a>
+          <a href="/advertiser-landing.html" class="nav-link">Advertisers</a>
+          <a href="/ops.html" class="nav-link">Ops</a>
+          <a href="/health.html" class="nav-link">Status</a>
+        </nav>
+        <div class="header-actions">
           <button id="openQuickstart" class="btn">Open Quickstart</button>
+          <a class="btn ghost" href="/ops.html">Open Console</a>
         </div>
       </header>
 
-      <section class="strip">
-        <div class="strip-item">
-          <h3>Capture</h3>
-          <p>Emit intent and conversion events from a live creative.</p>
-        </div>
-        <div class="strip-item">
-          <h3>Route</h3>
-          <p>Watch selection decisions and policy filters update.</p>
-        </div>
-        <div class="strip-item">
-          <h3>Verify</h3>
-          <p>Inspect delivery health, payout runs, and reconciliation.</p>
-        </div>
-      </section>
-
-      <section class="grid">
-        <div class="card">
-          <h2>Live Creative</h2>
-          <p class="hint">This demo loads a Flyback creative runtime and emits intent tokens.</p>
-          <div
-            class="panel"
-            data-flyback-container
-            data-publisher-id="publisher-demo"
-            data-size="300x250"
-            style="width: 300px; height: 250px;">
+      <main class="shell">
+        <section class="hero hero-grid">
+          <div class="hero-copy">
+            <p class="eyebrow">Ad network infrastructure</p>
+            <h1>Route, verify, and pay for real outcomes.</h1>
+            <p class="subhead">
+              Flyback connects publishers, advertisers, and conversions in a single event-sourced spine with real-time
+              visibility.
+            </p>
+            <div class="hero-actions">
+              <a class="btn" href="/advertiser.html">View advertiser console</a>
+              <a class="btn ghost" href="/ops.html">View publisher console</a>
+            </div>
+            <div class="hero-badges">
+              <span class="badge">Intent routing</span>
+              <span class="badge">Outcome ledger</span>
+              <span class="badge">Policy controls</span>
+            </div>
           </div>
-        </div>
-        <div class="card">
-          <h2>Getting Started</h2>
+          <div class="hero-card">
+            <h2>Network at a glance</h2>
+            <div class="kpi-grid">
+              <div class="kpi">
+                <p class="kpi-label">Publisher policies</p>
+                <p class="kpi-value">Floors + priority</p>
+              </div>
+              <div class="kpi">
+                <p class="kpi-label">Advertiser caps</p>
+                <p class="kpi-value">Budget + outcomes</p>
+              </div>
+              <div class="kpi">
+                <p class="kpi-label">Ledger output</p>
+                <p class="kpi-value">Payout-ready</p>
+              </div>
+              <div class="kpi">
+                <p class="kpi-label">Observability</p>
+                <p class="kpi-value">Reconciled</p>
+              </div>
+            </div>
+            <div class="panel-callout">
+              <p class="panel-title">Demo keys ready</p>
+              <p class="panel-body">Use the buttons below to copy keys for instant access.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="card split">
+          <div>
+            <p class="eyebrow">Network proof</p>
+            <h2>Built for performance teams that need truth, fast.</h2>
+            <p class="hint">Event-sourced tracking, deterministic routing, and payout-ready records.</p>
+          </div>
+          <div class="stat-grid">
+            <div class="stat">
+              <p class="stat-value">Realtime</p>
+              <p class="stat-label">Intent and outcome visibility</p>
+            </div>
+            <div class="stat">
+              <p class="stat-value">Audited</p>
+              <p class="stat-label">Ledger-backed payout signals</p>
+            </div>
+            <div class="stat">
+              <p class="stat-value">Policy-first</p>
+              <p class="stat-label">Floors, caps, and demand priority</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-header">
+            <div>
+              <h2>Design partners</h2>
+              <p class="hint">Prototype brands shaping the network experience.</p>
+            </div>
+          </div>
+          <div class="logo-row">
+            <span class="logo-pill">Beacon Media</span>
+            <span class="logo-pill">Northern Atlas</span>
+            <span class="logo-pill">Signal Harbor</span>
+            <span class="logo-pill">Archer Labs</span>
+          </div>
+        </section>
+
+        <section class="strip stagger">
+          <div class="strip-item">
+            <h3>Capture</h3>
+            <p>Emit intent signals and multi-stage outcomes from creatives.</p>
+          </div>
+          <div class="strip-item">
+            <h3>Route</h3>
+            <p>Selection logic respects policies, budgets, and performance metrics.</p>
+          </div>
+          <div class="strip-item">
+            <h3>Reconcile</h3>
+            <p>Ledger, budgets, and aggregates stay consistent and auditable.</p>
+          </div>
+        </section>
+
+        <section class="grid">
+          <div class="card">
+            <h2>Live Creative</h2>
+            <p class="hint">This demo loads a Flyback creative runtime and emits intent tokens.</p>
+            <div
+              class="panel"
+              data-flyback-container
+              data-publisher-id="publisher-demo"
+              data-size="300x250"
+              style="width: 300px; height: 250px;">
+            </div>
+            <p class="note">Use the creative buttons to simulate lead and purchase outcomes.</p>
+          </div>
+          <div class="card">
+            <h2>Choose your role</h2>
+            <div class="steps">
+              <div class="step">
+                <span class="step-index">01</span>
+                <div>
+                  <p class="step-title">Publishers</p>
+                  <p class="step-body">Protect yield with floors, demand priorities, and payout clarity.</p>
+                </div>
+              </div>
+              <div class="step">
+                <span class="step-index">02</span>
+                <div>
+                  <p class="step-title">Advertisers</p>
+                  <p class="step-body">Track outcomes, caps, and pacing from a single ledger view.</p>
+                </div>
+              </div>
+              <div class="cta">
+                <a class="btn" href="/publisher.html">Publisher hub</a>
+                <a class="btn ghost" href="/advertiser-landing.html">Advertiser hub</a>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-header">
+            <div>
+              <h2>Demo Keys</h2>
+              <p class="hint">Copy keys and open the consoles to explore the network.</p>
+            </div>
+            <div class="controls">
+              <button id="copyPublisherKey" class="btn ghost">Copy Publisher Key</button>
+              <button id="copyAdvertiserKey" class="btn ghost">Copy Advertiser Key</button>
+            </div>
+          </div>
           <div class="table">
             <div class="row">
-              <span>1. Start the server</span>
-              <span><code>node server.js</code></span>
+              <span>Publisher key</span>
+              <span id="publisherKeyValue">demo-publisher-key</span>
             </div>
             <div class="row">
-              <span>2. Open ops view</span>
-              <span><code>/ops.html?api_key=demo-publisher-key</code></span>
-            </div>
-            <div class="row">
-              <span>3. Open advertiser view</span>
-              <span><code>/advertiser.html?api_key=demo-advertiser-key</code></span>
-            </div>
-            <div class="row">
-              <span>4. Trigger conversions</span>
-              <span>Use the creative buttons</span>
+              <span>Advertiser key</span>
+              <span id="advertiserKeyValue">demo-advertiser-key</span>
             </div>
           </div>
-          <div class="checklist">
-            <label><input type="checkbox" disabled /> Ops console opens</label>
-            <label><input type="checkbox" disabled /> Advertiser console opens</label>
-            <label><input type="checkbox" disabled /> Conversions appear in reports</label>
-          </div>
-        </div>
-      </section>
+        </section>
 
-      <section class="card">
-        <div class="card-header">
-          <h2>Demo Keys</h2>
-          <div class="controls">
-            <button id="copyPublisherKey" class="btn ghost">Copy Publisher Key</button>
-            <button id="copyAdvertiserKey" class="btn ghost">Copy Advertiser Key</button>
+        <section class="grid">
+          <div class="card">
+            <h2>Getting Started</h2>
+            <div class="table">
+              <div class="row">
+                <span>1. Start the server</span>
+                <span><code>node server.js</code></span>
+              </div>
+              <div class="row">
+                <span>2. Open ops view</span>
+                <span><code>/ops.html?api_key=demo-publisher-key</code></span>
+              </div>
+              <div class="row">
+                <span>3. Open advertiser view</span>
+                <span><code>/advertiser.html?api_key=demo-advertiser-key</code></span>
+              </div>
+              <div class="row">
+                <span>4. Trigger conversions</span>
+                <span>Use the creative buttons</span>
+              </div>
+            </div>
+            <div class="checklist">
+              <label><input type="checkbox" disabled /> Ops console opens</label>
+              <label><input type="checkbox" disabled /> Advertiser console opens</label>
+              <label><input type="checkbox" disabled /> Conversions appear in reports</label>
+            </div>
           </div>
-        </div>
-        <div class="table">
-          <div class="row">
-            <span>Publisher key</span>
-            <span id="publisherKeyValue">demo-publisher-key</span>
+          <div class="card">
+            <h2>Network Features</h2>
+            <ul class="feature-list">
+              <li>Multi-stage outcomes with partial and final resolution tracking.</li>
+              <li>Publisher floors, demand priorities, and routing controls.</li>
+              <li>Advertiser caps with billable and non-billable outcomes.</li>
+              <li>Ledger + reconciliation for payout readiness.</li>
+            </ul>
+            <div class="callout">
+              <p class="callout-title">Why it matters</p>
+              <p class="callout-body">Every decision is traceable back to an event, so finance and ops stay aligned.</p>
+            </div>
+            <div class="cta">
+              <p>Ready to explore performance signals?</p>
+              <a class="btn" href="/ops.html">Launch ops console</a>
+            </div>
           </div>
-          <div class="row">
-            <span>Advertiser key</span>
-            <span id="advertiserKeyValue">demo-advertiser-key</span>
-          </div>
-        </div>
-      </section>
-    </main>
+        </section>
+      </main>
 
-    <footer class="footer">
-      <span>Flyback demo - internal preview</span>
-      <span><a href="/ops.html">Ops</a> | <a href="/advertiser.html">Advertiser</a> | <a href="/health.html">Status</a></span>
-    </footer>
+      <footer class="footer">
+        <span>Flyback network preview. Internal prototype for demo use.</span>
+        <span><a href="/publisher.html">Publishers</a> | <a href="/advertiser-landing.html">Advertisers</a> | <a href="/health.html">Status</a></span>
+      </footer>
+    </div>
 
     <script src="/runtime.js" async></script>
     <script src="/landing.js" type="module"></script>

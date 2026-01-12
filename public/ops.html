@@ -7,227 +7,280 @@
     <link rel="stylesheet" href="/ops.css" />
   </head>
   <body>
-    <main class="shell">
-      <header class="hero">
-        <div class="hero-top">
+    <div class="page">
+      <header class="site-header">
+        <div class="brand">
+          <span class="brand-mark">Fb</span>
           <div>
-            <p class="eyebrow">Flyback V5</p>
-            <h1>Network Console</h1>
-            <p class="subhead">Live performance, payouts, and delivery health in one place.</p>
+            <p class="brand-name">Flyback</p>
+            <p class="brand-tag">Publisher Ops</p>
           </div>
-          <nav class="nav">
-            <a href="/ops.html" class="nav-link active">Ops</a>
-            <a href="/advertiser.html" class="nav-link">Advertiser</a>
-          </nav>
+        </div>
+        <nav class="nav">
+          <a href="/index.html" class="nav-link">Home</a>
+          <a href="/publisher.html" class="nav-link">Publishers</a>
+          <a href="/advertiser-landing.html" class="nav-link">Advertisers</a>
+          <a href="/ops.html" class="nav-link active">Ops</a>
+          <a href="/advertiser.html" class="nav-link">Advertiser</a>
+          <a href="/health.html" class="nav-link">Status</a>
+        </nav>
+        <div class="header-actions">
+          <button id="refresh" class="btn ghost">Refresh</button>
+          <button id="useDemoKey" class="btn">Use Demo Key</button>
         </div>
       </header>
 
-      <section class="strip">
-        <div class="strip-item">
-          <h3>Measure</h3>
-          <p>Track intent, resolution, and payout performance per campaign.</p>
-        </div>
-        <div class="strip-item">
-          <h3>Route</h3>
-          <p>See selection decisions and policy constraints in real time.</p>
-        </div>
-        <div class="strip-item">
-          <h3>Verify</h3>
-          <p>Reconcile payouts, inspect delivery, and validate signatures.</p>
-        </div>
-      </section>
-
-      <section class="panel">
-        <div class="row">
-          <label class="label" for="apiKey">Publisher Access Key</label>
-          <input id="apiKey" type="password" placeholder="demo-publisher-key" />
-          <button id="saveKey" class="btn">Save</button>
-          <button id="refresh" class="btn ghost">Refresh</button>
-          <button id="useDemoKey" class="btn ghost">Use Demo Key</button>
-          <button id="resetTour" class="btn ghost">Reset Tour</button>
-        </div>
-        <div class="row meta">
-          <span id="status">Idle</span>
-          <span id="publisherId">Publisher: -</span>
-          <span id="lastUpdated">-</span>
-        </div>
-        <div class="row meta">
-          <span id="freshness">Freshness: -</span>
-        </div>
-        <div id="lagBanner" class="banner hidden"></div>
-      </section>
-
-      <section class="grid">
-        <div class="card">
-          <h2>Quick Tips</h2>
-          <div class="table">
-            <div class="row">
-              <span>1. Open advertiser view</span>
-              <span><code>/advertiser.html</code></span>
-            </div>
-            <div class="row">
-              <span>2. Trigger conversions</span>
-              <span>Use the creative buttons</span>
-            </div>
-            <div class="row">
-              <span>3. Export summaries</span>
-              <span>CSV buttons in each card</span>
-            </div>
+      <div class="dashboard">
+        <aside class="sidebar">
+          <div class="sidebar-section">
+            <p class="sidebar-title">Workspace</p>
+            <a class="sidebar-link active" href="#overview">Overview</a>
+            <a class="sidebar-link" href="#performance">Performance</a>
+            <a class="sidebar-link" href="#routing">Routing</a>
+            <a class="sidebar-link" href="#delivery">Delivery</a>
+            <a class="sidebar-link" href="#payouts">Payouts</a>
           </div>
-        </div>
-        <div class="card">
-          <div class="card-header">
+          <div class="sidebar-section">
+            <p class="sidebar-title">Exports</p>
+            <a class="sidebar-link" href="#delivery">Delivery JSON</a>
+            <a class="sidebar-link" href="#publisher-statement">Publisher statement</a>
+            <a class="sidebar-link" href="#invoices">Invoice drafts</a>
+          </div>
+          <div class="sidebar-card">
+            <p class="sidebar-kicker">Publisher key</p>
+            <p class="sidebar-value">demo-publisher-key</p>
+            <p class="sidebar-note">Use the demo key to load live ops data.</p>
+          </div>
+        </aside>
+
+        <main class="shell content">
+          <section id="overview" class="hero hero-slim">
             <div>
-              <h2>Performance Overview</h2>
-              <p class="hint">Filter by campaign, creative, or publisher.</p>
+              <p class="eyebrow">Network console</p>
+              <h1>Publisher performance, delivery health, and payouts.</h1>
+              <p class="subhead">
+                Monitor every intent, resolution, and payout signal across campaigns with real-time operational
+                controls.
+              </p>
+            </div>
+            <div class="hero-status">
+              <div class="status-pill">
+                <span class="status-label">Status</span>
+                <span id="status">Idle</span>
+              </div>
+              <div class="status-pill">
+                <span class="status-label">Publisher</span>
+                <span id="publisherId">Publisher: -</span>
+              </div>
+              <div class="status-pill">
+                <span class="status-label">Updated</span>
+                <span id="lastUpdated">-</span>
+              </div>
+              <div class="status-pill">
+                <span class="status-label">Freshness</span>
+                <span id="freshness">-</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="row">
+              <label class="label" for="apiKey">Publisher Access Key</label>
+              <input id="apiKey" type="password" placeholder="demo-publisher-key" />
+              <button id="saveKey" class="btn">Save</button>
+              <button id="resetTour" class="btn ghost">Reset Tour</button>
+            </div>
+            <div id="lagBanner" class="banner hidden"></div>
+          </section>
+
+          <section class="strip stagger">
+            <div class="strip-item">
+              <h3>Measure</h3>
+              <p>Track intent, resolution, and payout performance per campaign.</p>
+            </div>
+            <div class="strip-item">
+              <h3>Route</h3>
+              <p>Review selection decisions and policy constraints in real time.</p>
+            </div>
+            <div class="strip-item">
+              <h3>Verify</h3>
+              <p>Reconcile payouts, inspect delivery, and validate signatures.</p>
+            </div>
+          </section>
+
+          <section id="performance" class="grid">
+            <div class="card">
+              <h2>Quick Tips</h2>
+              <div class="table">
+                <div class="row">
+                  <span>1. Open advertiser view</span>
+                  <span><code>/advertiser.html</code></span>
+                </div>
+                <div class="row">
+                  <span>2. Trigger conversions</span>
+                  <span>Use the creative buttons</span>
+                </div>
+                <div class="row">
+                  <span>3. Export summaries</span>
+                  <span>CSV buttons in each card</span>
+                </div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-header">
+                <div>
+                  <h2>Performance Overview</h2>
+                  <p class="hint">Filter by campaign, creative, or publisher.</p>
+                </div>
+                <div class="controls">
+                  <input id="aggregateFilter" type="text" placeholder="Filter..." />
+                  <select id="pageSize">
+                    <option value="5">5</option>
+                    <option value="10" selected>10</option>
+                    <option value="20">20</option>
+                  </select>
+                  <button id="exportCsv" class="btn ghost">Export CSV</button>
+                  <button id="prevPage" class="btn ghost">Prev</button>
+                  <button id="nextPage" class="btn ghost">Next</button>
+                </div>
+              </div>
+              <div class="row meta">
+                <span id="aggregateCount">0 results</span>
+                <span id="pageInfo">Page 1</span>
+              </div>
+              <div id="aggregates" class="table"></div>
+            </div>
+            <div class="card">
+              <h2>Payout Ledger</h2>
+              <div class="sparkline-row">
+                <span class="sparkline-label">Payout trend</span>
+                <div id="payoutSpark" class="sparkline"></div>
+              </div>
+              <div id="ledger" class="table"></div>
+              <h3 class="section-title">Top Ledger Entries</h3>
+              <div id="ledgerEntries" class="table"></div>
+            </div>
+          </section>
+
+          <section id="routing" class="card">
+            <h2>Routing Decisions</h2>
+            <div id="selections" class="table"></div>
+          </section>
+
+          <section id="delivery" class="card">
+            <h2>Delivery Health</h2>
+            <div class="sparkline-row">
+              <span class="sparkline-label">Delivery lag</span>
+              <div id="deliverySpark" class="sparkline"></div>
             </div>
             <div class="controls">
-              <input id="aggregateFilter" type="text" placeholder="Filter..." />
-              <select id="pageSize">
-                <option value="5">5</option>
-                <option value="10" selected>10</option>
-                <option value="20">20</option>
-              </select>
-              <button id="exportCsv" class="btn ghost">Export CSV</button>
-              <button id="prevPage" class="btn ghost">Prev</button>
-              <button id="nextPage" class="btn ghost">Next</button>
+              <button id="exportDelivery" class="btn ghost">Download Delivery JSON</button>
             </div>
+            <div id="delivery" class="table"></div>
+          </section>
+
+          <section class="card">
+            <h2>Delivery DLQ</h2>
+            <div id="dlq" class="table"></div>
+          </section>
+
+          <section id="invoices" class="card">
+            <h2>Invoice Drafts</h2>
+            <div id="invoices" class="table"></div>
+          </section>
+
+          <section id="payouts" class="card">
+            <div class="card-header">
+              <h2>Payout Runs</h2>
+              <span id="payoutReconBadge" class="badge">Recon: -</span>
+            </div>
+            <div class="controls">
+              <select id="payoutStatusFilter">
+                <option value="all">All statuses</option>
+                <option value="pending">Pending</option>
+                <option value="sent">Sent</option>
+                <option value="settled">Settled</option>
+              </select>
+              <select id="payoutSort">
+                <option value="created_desc">Newest first</option>
+                <option value="created_asc">Oldest first</option>
+                <option value="payout_desc">Largest payout</option>
+                <option value="payout_asc">Smallest payout</option>
+              </select>
+              <button id="exportPayouts" class="btn ghost">Download Payouts CSV</button>
+            </div>
+            <div id="payoutSummary" class="row meta"></div>
+            <div id="payoutRuns" class="table"></div>
+          </section>
+
+          <section class="card">
+            <div class="card-header">
+              <h2>Advertiser Coverage</h2>
+              <button id="exportPayoutLinks" class="btn ghost">Download Links CSV</button>
+            </div>
+            <div id="payoutRunLinks" class="table"></div>
+          </section>
+
+          <section class="card">
+            <h2>System Status</h2>
+            <div id="systemStatus" class="table"></div>
+          </section>
+
+          <section class="card">
+            <div class="card-header">
+              <h2>Delivery Payload Example</h2>
+              <button id="copyDeliveryPayload" class="btn ghost">Copy Example</button>
+            </div>
+            <pre id="deliveryPayloadExample" class="code-block"></pre>
+          </section>
+
+          <section class="card">
+            <div class="card-header">
+              <h2>Webhook Signature Verifier</h2>
+            </div>
+            <p class="hint">Paste the raw JSON body and signature header to verify.</p>
+            <label class="label" for="verifyPayload">Payload</label>
+            <textarea id="verifyPayload" class="code-block" rows="8" placeholder="{ ... }"></textarea>
+            <div class="row">
+              <input id="verifySecret" type="password" placeholder="Shared secret" />
+              <input id="verifySignature" type="text" placeholder="x-flyback-signature" />
+              <button id="verifyButton" class="btn ghost">Verify</button>
+            </div>
+            <div id="verifyResult" class="row meta"></div>
+          </section>
+
+          <section class="card">
+            <h2>Publisher Policy</h2>
+            <div id="publisherPolicy" class="table"></div>
+          </section>
+
+          <section id="publisher-statement" class="card">
+            <div class="card-header">
+              <h2>Publisher Statement</h2>
+              <div class="controls">
+                <button id="exportPublisherStatement" class="btn ghost">Download Statement CSV</button>
+                <button id="exportPublisherStatementJson" class="btn ghost">Download Statement JSON</button>
+              </div>
+            </div>
+            <div id="publisherStatement" class="table"></div>
+          </section>
+        </main>
+      </div>
+
+      <footer class="footer">
+        <span>Flyback console - read-only by design.</span>
+        <span><a href="/index.html">Home</a> | <a href="/publisher.html">Publishers</a> | <a href="/advertiser-landing.html">Advertisers</a> | <a href="/health.html">Status</a></span>
+      </footer>
+
+      <div id="tour" class="tour hidden">
+        <div class="tour-card">
+          <h3 id="tourTitle">Welcome</h3>
+          <p id="tourBody">Use the demo key to load data, then explore the overview.</p>
+          <div class="tour-controls">
+            <button id="tourPrev" class="btn ghost">Back</button>
+            <button id="tourNext" class="btn">Next</button>
+            <button id="tourClose" class="btn ghost">Close</button>
           </div>
-          <div class="row meta">
-            <span id="aggregateCount">0 results</span>
-            <span id="pageInfo">Page 1</span>
-          </div>
-          <div id="aggregates" class="table"></div>
-        </div>
-        <div class="card">
-          <h2>Payout Ledger</h2>
-          <div class="sparkline-row">
-            <span class="sparkline-label">Payout trend</span>
-            <div id="payoutSpark" class="sparkline"></div>
-          </div>
-          <div id="ledger" class="table"></div>
-          <h3 class="section-title">Top Ledger Entries</h3>
-          <div id="ledgerEntries" class="table"></div>
-        </div>
-      </section>
-
-      <section class="card">
-        <h2>Routing Decisions</h2>
-        <div id="selections" class="table"></div>
-      </section>
-
-      <section class="card">
-        <h2>Delivery Health</h2>
-        <div class="sparkline-row">
-          <span class="sparkline-label">Delivery lag</span>
-          <div id="deliverySpark" class="sparkline"></div>
-        </div>
-        <div class="controls">
-          <button id="exportDelivery" class="btn ghost">Download Delivery JSON</button>
-        </div>
-        <div id="delivery" class="table"></div>
-      </section>
-
-      <section class="card">
-        <h2>Delivery DLQ</h2>
-        <div id="dlq" class="table"></div>
-      </section>
-
-      <section class="card">
-        <h2>Invoice Drafts</h2>
-        <div id="invoices" class="table"></div>
-      </section>
-
-      <section class="card">
-        <div class="card-header">
-          <h2>Payout Runs</h2>
-          <span id="payoutReconBadge" class="badge">Recon: -</span>
-        </div>
-        <div class="controls">
-          <select id="payoutStatusFilter">
-            <option value="all">All statuses</option>
-            <option value="pending">Pending</option>
-            <option value="sent">Sent</option>
-            <option value="settled">Settled</option>
-          </select>
-          <select id="payoutSort">
-            <option value="created_desc">Newest first</option>
-            <option value="created_asc">Oldest first</option>
-            <option value="payout_desc">Largest payout</option>
-            <option value="payout_asc">Smallest payout</option>
-          </select>
-          <button id="exportPayouts" class="btn ghost">Download Payouts CSV</button>
-        </div>
-        <div id="payoutSummary" class="row meta"></div>
-        <div id="payoutRuns" class="table"></div>
-      </section>
-
-      <section class="card">
-        <div class="card-header">
-          <h2>Advertiser Coverage</h2>
-          <button id="exportPayoutLinks" class="btn ghost">Download Links CSV</button>
-        </div>
-        <div id="payoutRunLinks" class="table"></div>
-      </section>
-
-      <section class="card">
-        <h2>System Status</h2>
-        <div id="systemStatus" class="table"></div>
-      </section>
-
-      <section class="card">
-        <div class="card-header">
-          <h2>Delivery Payload Example</h2>
-          <button id="copyDeliveryPayload" class="btn ghost">Copy Example</button>
-        </div>
-        <pre id="deliveryPayloadExample" class="code-block"></pre>
-      </section>
-
-      <section class="card">
-        <div class="card-header">
-          <h2>Webhook Signature Verifier</h2>
-        </div>
-        <p class="hint">Paste the raw JSON body and signature header to verify.</p>
-        <label class="label" for="verifyPayload">Payload</label>
-        <textarea id="verifyPayload" class="code-block" rows="8" placeholder="{ ... }"></textarea>
-        <div class="row">
-          <input id="verifySecret" type="password" placeholder="Shared secret" />
-          <input id="verifySignature" type="text" placeholder="x-flyback-signature" />
-          <button id="verifyButton" class="btn ghost">Verify</button>
-        </div>
-        <div id="verifyResult" class="row meta"></div>
-      </section>
-
-      <section class="card">
-        <h2>Publisher Policy</h2>
-        <div id="publisherPolicy" class="table"></div>
-      </section>
-
-      <section class="card">
-        <div class="card-header">
-          <h2>Publisher Statement</h2>
-          <div class="controls">
-            <button id="exportPublisherStatement" class="btn ghost">Download Statement CSV</button>
-            <button id="exportPublisherStatementJson" class="btn ghost">Download Statement JSON</button>
-          </div>
-        </div>
-        <div id="publisherStatement" class="table"></div>
-      </section>
-    </main>
-
-    <footer class="footer">
-      <span>Flyback console - read-only by design</span>
-      <span><a href="/index.html">Home</a> | <a href="/health.html">Status</a></span>
-    </footer>
-
-    <div id="tour" class="tour hidden">
-      <div class="tour-card">
-        <h3 id="tourTitle">Welcome</h3>
-        <p id="tourBody">Use the demo key to load data, then explore the overview.</p>
-        <div class="tour-controls">
-          <button id="tourPrev" class="btn ghost">Back</button>
-          <button id="tourNext" class="btn">Next</button>
-          <button id="tourClose" class="btn ghost">Close</button>
         </div>
       </div>
     </div>
