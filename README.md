@@ -616,6 +616,8 @@ Open `/health.html?api_key=demo-publisher-key` to view uptime, delivery, and win
 
 `GET /healthz` returns a minimal JSON payload for container health checks.
 
+Sample payload: `schemas/healthz.example.json`.
+
 ## 18. Environment Reference
 
 Required for public hosting:
@@ -633,6 +635,14 @@ Common:
 - `RATE_LIMIT_BYPASS` (true to disable rate limiting)
 
 An example file is provided at `.env.example`.
+
+## 19. Public-Ready Checklist (Draft)
+
+- Set `OPS_TOKEN_SECRET` to a strong value.
+- Keep `WRITE_ENABLED=true` on a single writer instance only.
+- Disable `RATE_LIMIT_BYPASS` and tune rate limits.
+- Configure `WEBHOOK_SECRET` and verify signatures on consumers.
+- Back up `data/` regularly (events, ledger, payouts, snapshots).
 ### Hosted run assumptions
 
 - Provide a Node 18+ runtime with file system access for `data/tokens.json`.
