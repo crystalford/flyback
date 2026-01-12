@@ -2,6 +2,13 @@ const apiKeyInput = document.getElementById("apiKey");
 const saveKeyButton = document.getElementById("saveKey");
 const refreshButton = document.getElementById("refresh");
 const useDemoKeyButton = document.getElementById("useDemoKey");
+const tourEl = document.getElementById("tour");
+const tourTitleEl = document.getElementById("tourTitle");
+const tourBodyEl = document.getElementById("tourBody");
+const tourPrevEl = document.getElementById("tourPrev");
+const tourNextEl = document.getElementById("tourNext");
+const tourCloseEl = document.getElementById("tourClose");
+const TOUR_KEY = "flyback_adv_tour_seen";
 const statusEl = document.getElementById("status");
 const lastUpdatedEl = document.getElementById("lastUpdated");
 const freshnessEl = document.getElementById("freshness");
@@ -390,6 +397,49 @@ const refresh = async () => {
   }
 };
 
+const tourSteps = [
+  {
+    title: "Connect Your Account",
+    body: "Use the demo key to load payout and delivery summaries."
+  },
+  {
+    title: "Review Payouts",
+    body: "Scan payout runs, coverage, and statement exports."
+  },
+  {
+    title: "Monitor Delivery",
+    body: "Confirm delivery health and selection activity."
+  }
+];
+let tourIndex = 0;
+
+const renderTour = () => {
+  if (!tourEl || !tourTitleEl || !tourBodyEl) {
+    return;
+  }
+  const step = tourSteps[tourIndex];
+  tourTitleEl.textContent = step.title;
+  tourBodyEl.textContent = step.body;
+  tourPrevEl.disabled = tourIndex === 0;
+  tourNextEl.textContent = tourIndex === tourSteps.length - 1 ? "Finish" : "Next";
+};
+
+const openTour = () => {
+  if (!tourEl) {
+    return;
+  }
+  tourEl.classList.remove("hidden");
+  renderTour();
+};
+
+const closeTour = () => {
+  if (!tourEl) {
+    return;
+  }
+  tourEl.classList.add("hidden");
+  localStorage.setItem(TOUR_KEY, "true");
+};
+
 saveKeyButton.addEventListener("click", () => {
   localStorage.setItem("flyback_advertiser_key", apiKeyInput.value.trim());
   refresh();
@@ -403,6 +453,26 @@ useDemoKeyButton.addEventListener("click", () => {
 
 refreshButton.addEventListener("click", () => {
   refresh();
+});
+
+tourPrevEl.addEventListener("click", () => {
+  if (tourIndex > 0) {
+    tourIndex -= 1;
+    renderTour();
+  }
+});
+
+tourNextEl.addEventListener("click", () => {
+  if (tourIndex < tourSteps.length - 1) {
+    tourIndex += 1;
+    renderTour();
+  } else {
+    closeTour();
+  }
+});
+
+tourCloseEl.addEventListener("click", () => {
+  closeTour();
 });
 
 aggregateFilterEl.addEventListener("input", () => {
@@ -596,6 +666,10 @@ exportPublisherStatementJsonEl.addEventListener("click", () => {
 });
 
 refresh();
+
+if (!localStorage.getItem(TOUR_KEY)) {
+  openTour();
+}
 
 setInterval(() => {
   if (!lastRefreshAt) {

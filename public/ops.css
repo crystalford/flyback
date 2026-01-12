@@ -201,6 +201,41 @@ code {
   border-radius: 6px;
 }
 
+.tour {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 32, 51, 0.4);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 24px;
+  z-index: 1000;
+}
+
+.tour.hidden {
+  display: none;
+}
+
+.tour-card {
+  width: min(560px, 90vw);
+  background: white;
+  border-radius: 18px;
+  padding: 20px 24px;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--panel-border);
+}
+
+.tour-card h3 {
+  margin: 0 0 8px;
+}
+
+.tour-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+
 .card {
   padding: 20px 24px;
   border-radius: var(--radius);
