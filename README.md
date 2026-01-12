@@ -608,6 +608,10 @@ To add a new migration:
 1. `docker build -t flyback .`
 2. `docker run --rm -p 3000:3000 -e OPS_TOKEN_SECRET=change-me flyback`
 
+### Status page
+
+Open `/health.html?api_key=demo-publisher-key` to view uptime, delivery, and window metrics.
+
 ## 18. Environment Reference
 
 Required for public hosting:

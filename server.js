@@ -5025,7 +5025,9 @@ const server = http.createServer(async (req, res) => {
           url.pathname.startsWith("/ops.") ||
           url.pathname.startsWith("/schemas/") ||
           url.pathname === "/advertiser.html" ||
-          url.pathname.startsWith("/advertiser.")
+          url.pathname.startsWith("/advertiser.") ||
+          url.pathname === "/health.html" ||
+          url.pathname.startsWith("/health.")
         ) {
           if (!authorizeOpsRequest(req, url, res)) {
             return;

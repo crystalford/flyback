@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Flyback Status</title>
+    <link rel="stylesheet" href="/ops.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="hero">
+        <div class="hero-top">
+          <div>
+            <p class="eyebrow">Flyback</p>
+            <h1>System Status</h1>
+            <p class="subhead">Uptime, delivery health, and event pipeline status.</p>
+          </div>
+          <nav class="nav">
+            <a href="/index.html" class="nav-link">Home</a>
+            <a href="/ops.html" class="nav-link">Ops</a>
+            <a href="/advertiser.html" class="nav-link">Advertiser</a>
+          </nav>
+        </div>
+      </header>
+
+      <section class="panel">
+        <div class="row">
+          <label class="label" for="apiKey">Publisher Access Key</label>
+          <input id="apiKey" type="password" placeholder="demo-publisher-key" />
+          <button id="saveKey" class="btn">Save</button>
+          <button id="refresh" class="btn ghost">Refresh</button>
+        </div>
+        <div class="row meta">
+          <span id="status">Idle</span>
+          <span id="lastUpdated">-</span>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="card">
+          <h2>System</h2>
+          <div id="systemStatus" class="table"></div>
+        </div>
+        <div class="card">
+          <h2>Delivery Health</h2>
+          <div id="deliveryStatus" class="table"></div>
+        </div>
+        <div class="card">
+          <h2>Aggregation Window</h2>
+          <div id="windowStatus" class="table"></div>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="/health.js"></script>
+  </body>
+</html>
