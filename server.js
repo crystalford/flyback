@@ -996,6 +996,9 @@ const applyRateLimit = (req, res) => {
   }
   bucket.count += 1;
   rateLimitBuckets.set(ip, bucket);
+  res.setHeader("X-RateLimit-Limit", String(RATE_LIMIT_MAX));
+  res.setHeader("X-RateLimit-Remaining", String(Math.max(0, RATE_LIMIT_MAX - bucket.count)));
+  res.setHeader("X-RateLimit-Reset", String(Math.floor(bucket.resetAt / 1000)));
   if (bucket.count > RATE_LIMIT_MAX) {
     res.writeHead(429, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ error: "rate_limited" }));
@@ -4925,6 +4928,17 @@ const serveStatic = (res, filePath) => {
 
 const server = http.createServer(async (req, res) => {
   try {
+    const startAt = Date.now();
+    res.on("finish", () => {
+      const durationMs = Date.now() - startAt;
+      console.log("http.request", {
+        method: req.method,
+        path: req.url,
+        status: res.statusCode,
+        duration_ms: durationMs,
+        ip: getClientIp(req)
+      });
+    });
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("X-Frame-Options", "DENY");
     res.setHeader("Referrer-Policy", "no-referrer");

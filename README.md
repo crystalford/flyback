@@ -623,6 +623,8 @@ Common:
 - `RATE_LIMIT_MAX` (default 120 per window)
 - `RATE_LIMIT_WINDOW_MS` (default 60000)
 - `RATE_LIMIT_BYPASS` (true to disable rate limiting)
+
+An example file is provided at `.env.example`.
 ### Hosted run assumptions
 
 - Provide a Node 18+ runtime with file system access for `data/tokens.json`.
