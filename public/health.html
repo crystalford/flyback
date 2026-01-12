@@ -4,114 +4,116 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Flyback Status</title>
-    <link rel="stylesheet" href="/ops.css" />
+    <link rel="stylesheet" href="/flyback.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet" />
   </head>
   <body>
-    <div class="page">
-      <header class="site-header">
-        <div class="brand">
-          <span class="brand-mark">Fb</span>
+    <header class="header">
+      <div class="header-inner">
+        <a href="/index.html" class="logo">
+          <div class="logo-mark">Fb</div>
           <div>
-            <p class="brand-name">Flyback</p>
-            <p class="brand-tag">Network Status</p>
+            <div>Flyback</div>
+            <div class="logo-subtitle">System Status</div>
           </div>
-        </div>
+        </a>
         <nav class="nav">
-          <a href="/index.html" class="nav-link">Home</a>
           <a href="/publisher.html" class="nav-link">Publishers</a>
           <a href="/advertiser-landing.html" class="nav-link">Advertisers</a>
           <a href="/ops.html" class="nav-link">Ops</a>
-          <a href="/advertiser.html" class="nav-link">Advertiser</a>
           <a href="/health.html" class="nav-link active">Status</a>
         </nav>
-        <div class="header-actions">
-          <button id="refresh" class="btn ghost">Refresh</button>
-        </div>
-      </header>
-
-      <div class="dashboard">
-        <aside class="sidebar">
-          <div class="sidebar-section">
-            <p class="sidebar-title">Status</p>
-            <a class="sidebar-link active" href="#overview">Overview</a>
-            <a class="sidebar-link" href="#uptime">Uptime badge</a>
-            <a class="sidebar-link" href="#system">System</a>
-            <a class="sidebar-link" href="#delivery">Delivery</a>
-            <a class="sidebar-link" href="#window">Window</a>
-          </div>
-          <div class="sidebar-card">
-            <p class="sidebar-kicker">Health endpoint</p>
-            <p class="sidebar-value">/healthz</p>
-            <p class="sidebar-note">Use this for uptime monitoring.</p>
-          </div>
-        </aside>
-
-        <main class="shell content">
-          <section id="overview" class="hero hero-slim">
-            <div>
-              <p class="eyebrow">System health</p>
-              <h1>Uptime, delivery, and event pipeline status.</h1>
-              <p class="subhead">Keep a pulse on the network backbone and delivery quality.</p>
-            </div>
-            <div class="hero-status">
-              <div class="status-pill">
-                <span class="status-label">Status</span>
-                <span id="status">Idle</span>
-              </div>
-              <div class="status-pill">
-                <span class="status-label">Updated</span>
-                <span id="lastUpdated">-</span>
-              </div>
-            </div>
-          </section>
-
-          <section class="panel">
-            <div class="row">
-              <label class="label" for="apiKey">Publisher Access Key</label>
-              <input id="apiKey" type="password" placeholder="demo-publisher-key" />
-              <button id="saveKey" class="btn">Save</button>
-            </div>
-          </section>
-
-          <section id="uptime" class="card">
-            <div class="card-header">
-              <h2>Uptime Badge</h2>
-              <button id="copyBadge" class="btn ghost">Copy Markdown</button>
-            </div>
-            <div class="table">
-              <div class="row">
-                <span>Badge URL</span>
-                <span id="badgeUrl">/healthz</span>
-              </div>
-              <div class="row">
-                <span>Markdown</span>
-                <span id="badgeMarkdown">![status](BASE_URL/healthz)</span>
-              </div>
-            </div>
-          </section>
-
-          <section class="grid">
-            <div id="system" class="card">
-              <h2>System</h2>
-              <div id="systemStatus" class="table"></div>
-            </div>
-            <div id="delivery" class="card">
-              <h2>Delivery Health</h2>
-              <div id="deliveryStatus" class="table"></div>
-            </div>
-            <div id="window" class="card">
-              <h2>Aggregation Window</h2>
-              <div id="windowStatus" class="table"></div>
-            </div>
-          </section>
-        </main>
       </div>
+    </header>
 
-      <footer class="footer">
-        <span>Flyback status - read-only by design.</span>
-        <span><a href="/index.html">Home</a> | <a href="/publisher.html">Publishers</a> | <a href="/advertiser-landing.html">Advertisers</a> | <a href="/ops.html">Ops</a> | <a href="/advertiser.html">Advertiser</a></span>
-      </footer>
-    </div>
+    <section class="section-tight">
+      <div class="container">
+        <div class="card">
+          <div class="grid-2">
+            <div>
+              <p class="label mb-sm">Status</p>
+              <div id="status" class="card-value">Idle</div>
+            </div>
+            <div>
+              <p class="label mb-sm">Updated</p>
+              <div id="lastUpdated" class="card-value">-</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section-tight">
+      <div class="container">
+        <div class="panel">
+          <div class="row">
+            <label class="label" for="apiKey">Publisher Access Key</label>
+            <input id="apiKey" type="password" placeholder="demo-publisher-key" />
+            <button id="saveKey" class="btn btn-primary">Save</button>
+            <button id="refresh" class="btn ghost">Refresh</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <p class="label mb-sm">Uptime badge</p>
+              <div class="card-title">Healthz endpoint</div>
+            </div>
+            <button id="copyBadge" class="btn ghost">Copy Markdown</button>
+          </div>
+          <div class="table">
+            <div class="row">
+              <span>Badge URL</span>
+              <span id="badgeUrl" class="text-mono">/healthz</span>
+            </div>
+            <div class="row">
+              <span>Markdown</span>
+              <span id="badgeMarkdown" class="text-mono">![status](BASE_URL/healthz)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <div class="grid-3">
+          <div class="card">
+            <div class="card-label">System</div>
+            <div class="card-title">Runtime health</div>
+            <div id="systemStatus" class="table"></div>
+          </div>
+          <div class="card">
+            <div class="card-label">Delivery</div>
+            <div class="card-title">Webhook status</div>
+            <div id="deliveryStatus" class="table"></div>
+          </div>
+          <div class="card">
+            <div class="card-label">Window</div>
+            <div class="card-title">Aggregation window</div>
+            <div id="windowStatus" class="table"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <div class="container">
+        <p>
+          Flyback Status -
+          <a href="/index.html" style="color: inherit; text-decoration: none;">Home</a>
+        </p>
+      </div>
+    </footer>
 
     <script type="module" src="/health.js"></script>
   </body>

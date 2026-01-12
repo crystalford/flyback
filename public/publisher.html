@@ -4,147 +4,129 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Flyback for Publishers</title>
-    <link rel="stylesheet" href="/ops.css" />
+    <link rel="stylesheet" href="/flyback.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet" />
   </head>
   <body>
-    <div class="page">
-      <header class="site-header">
-        <div class="brand">
-          <span class="brand-mark">Fb</span>
+    <header class="header">
+      <div class="header-inner">
+        <a href="/index.html" class="logo">
+          <div class="logo-mark">Fb</div>
           <div>
-            <p class="brand-name">Flyback</p>
-            <p class="brand-tag">Publisher Network</p>
+            <div>Flyback</div>
+            <div class="logo-subtitle">Publisher Network</div>
           </div>
-        </div>
+        </a>
         <nav class="nav">
-          <a href="/index.html" class="nav-link">Home</a>
           <a href="/publisher.html" class="nav-link active">Publishers</a>
           <a href="/advertiser-landing.html" class="nav-link">Advertisers</a>
           <a href="/ops.html" class="nav-link">Ops</a>
+          <a href="/health.html" class="nav-link">Status</a>
         </nav>
-        <div class="header-actions">
-          <a class="btn" href="/ops.html">Open publisher console</a>
+      </div>
+    </header>
+
+    <section class="hero">
+      <div class="container container-narrow">
+        <div class="hero-content">
+          <p class="label text-primary mb-md">Publisher platform</p>
+          <h1 class="hero-title">High-intent demand with floor protection.</h1>
+          <p class="hero-subtitle">
+            Monetize with performance demand, enforce floor policies, and reconcile every payout from impression to
+            ledger.
+          </p>
+          <div class="hero-actions">
+            <a href="/ops.html?api_key=demo-publisher-key" class="btn btn-primary btn-lg">Launch Publisher Console</a>
+            <a href="/advertiser-landing.html" class="btn btn-secondary btn-lg">See Advertiser View</a>
+          </div>
         </div>
-      </header>
+      </div>
+    </section>
 
-      <main class="shell">
-        <section class="hero hero-grid">
-          <div class="hero-copy">
-            <p class="eyebrow">Publisher platform</p>
-            <h1>High-intent demand with real payout clarity.</h1>
-            <p class="subhead">
-              Monetize with performance demand, enforce floor policies, and reconcile every payout from impression to
-              ledger.
-            </p>
-            <div class="hero-actions">
-              <a class="btn" href="/ops.html">Launch publisher console</a>
-              <a class="btn ghost" href="/advertiser-landing.html">See advertiser view</a>
-            </div>
+    <section class="section">
+      <div class="container">
+        <div class="grid-3">
+          <div class="card">
+            <div class="card-label">Demand filters</div>
+            <div class="card-title">Performance plus direct</div>
+            <p class="text-muted text-small">Control which demand types are eligible for routing.</p>
           </div>
-          <div class="hero-card">
-            <h2>Publisher controls</h2>
-            <div class="kpi-grid">
-              <div class="kpi">
-                <p class="kpi-label">Demand filters</p>
-                <p class="kpi-value">Performance + direct</p>
-              </div>
-              <div class="kpi">
-                <p class="kpi-label">Floor enforcement</p>
-                <p class="kpi-value">Raw or weighted</p>
-              </div>
-              <div class="kpi">
-                <p class="kpi-label">Payout ledger</p>
-                <p class="kpi-value">Auditable</p>
-              </div>
-              <div class="kpi">
-                <p class="kpi-label">Delivery health</p>
-                <p class="kpi-value">Verified</p>
-              </div>
-            </div>
+          <div class="card">
+            <div class="card-label">Floor enforcement</div>
+            <div class="card-title">Raw or weighted EDV</div>
+            <p class="text-muted text-small">Protect yield with deterministic floor checks.</p>
           </div>
-        </section>
+          <div class="card">
+            <div class="card-label">Ledger clarity</div>
+            <div class="card-title">Auditable outcomes</div>
+            <p class="text-muted text-small">Every payout traceable from impression to ledger.</p>
+          </div>
+          <div class="card">
+            <div class="card-label">Delivery health</div>
+            <div class="card-title">Webhook verified</div>
+            <p class="text-muted text-small">Monitor delivery lag, retries, and DLQ.</p>
+          </div>
+          <div class="card">
+            <div class="card-label">Priority ordering</div>
+            <div class="card-title">Deterministic routing</div>
+            <p class="text-muted text-small">Publisher priorities are enforced before performance.</p>
+          </div>
+          <div class="card">
+            <div class="card-label">Payout reconciliation</div>
+            <div class="card-title">Verified signals</div>
+            <p class="text-muted text-small">Reconciliation keeps projections aligned with truth.</p>
+          </div>
+        </div>
+      </div>
+    </section>
 
-        <section class="card split">
-          <div>
-            <p class="eyebrow">Publisher momentum</p>
-            <h2>Protect yield without sacrificing performance.</h2>
-            <p class="hint">Every placement stays policy-compliant while outcomes stay transparent.</p>
-          </div>
+    <section class="section">
+      <div class="container">
+        <div class="card">
+          <p class="label mb-md">Publisher proof</p>
+          <h3 class="mb-md">Protect yield without sacrificing performance.</h3>
+          <p class="text-muted mb-lg">
+            Every placement stays policy-compliant while outcomes stay transparent.
+          </p>
           <div class="stat-grid">
             <div class="stat">
-              <p class="stat-value">Floor-safe</p>
-              <p class="stat-label">Raw or weighted enforcement</p>
+              <div class="stat-label">Floor-safe</div>
+              <div class="stat-value">Raw or weighted</div>
             </div>
             <div class="stat">
-              <p class="stat-value">Priority-led</p>
-              <p class="stat-label">Deterministic demand ordering</p>
+              <div class="stat-label">Priority-led</div>
+              <div class="stat-value">Deterministic</div>
             </div>
             <div class="stat">
-              <p class="stat-value">Auditable</p>
-              <p class="stat-label">Ledger-backed payout signals</p>
+              <div class="stat-label">Auditable</div>
+              <div class="stat-value">Ledger-backed</div>
             </div>
           </div>
-        </section>
+        </div>
+      </div>
+    </section>
 
-        <section class="strip stagger">
-          <div class="strip-item">
-            <h3>Protect yield</h3>
-            <p>Set floor metrics, enforce demand types, and keep routing on-policy.</p>
-          </div>
-          <div class="strip-item">
-            <h3>See payouts fast</h3>
-            <p>Ledger-backed payout estimates and reconciliation in real time.</p>
-          </div>
-          <div class="strip-item">
-            <h3>Control delivery</h3>
-            <p>Verify webhook delivery, DLQ, and event pipeline health.</p>
-          </div>
-        </section>
+    <section class="section-tight">
+      <div class="container container-narrow">
+        <div class="card" style="text-align: center;">
+          <p class="label mb-md">Ready to explore?</p>
+          <p class="text-muted mb-lg">Use the demo key to load a live publisher view.</p>
+          <a href="/ops.html?api_key=demo-publisher-key" class="btn btn-primary btn-lg">Open Demo Console</a>
+        </div>
+      </div>
+    </section>
 
-        <section class="grid">
-          <div class="card">
-            <h2>What you get</h2>
-            <ul class="feature-list">
-              <li>Deterministic routing that respects publisher demand priorities.</li>
-              <li>Floor enforcement with transparent fallback behavior.</li>
-              <li>Publisher statements and export-ready payout data.</li>
-              <li>End-to-end reconciliation for every outcome.</li>
-            </ul>
-            <div class="callout">
-              <p class="callout-title">Operate with confidence</p>
-              <p class="callout-body">Publisher controls are enforced before any payout estimate is created.</p>
-            </div>
-          </div>
-          <div class="card">
-            <h2>Ready to explore?</h2>
-            <p class="hint">Use the demo key to load a live publisher view.</p>
-            <div class="cta">
-              <a class="btn" href="/ops.html?api_key=demo-publisher-key">Open demo console</a>
-              <a class="btn ghost" href="/index.html">Back to overview</a>
-            </div>
-          </div>
-        </section>
-
-        <section class="card">
-          <div class="card-header">
-            <div>
-              <h2>Publisher design partners</h2>
-              <p class="hint">Prototype partners shaping floor and payout semantics.</p>
-            </div>
-          </div>
-          <div class="logo-row">
-            <span class="logo-pill">North Shore Media</span>
-            <span class="logo-pill">Boreal Publishing</span>
-            <span class="logo-pill">Clearline Audio</span>
-            <span class="logo-pill">Summit Reach</span>
-          </div>
-        </section>
-      </main>
-
-      <footer class="footer">
-        <span>Flyback publisher experience - internal preview.</span>
-        <span><a href="/index.html">Home</a> | <a href="/advertiser-landing.html">Advertisers</a></span>
-      </footer>
-    </div>
+    <footer class="footer">
+      <div class="container">
+        <p>
+          Flyback Publisher Network -
+          <a href="/index.html" style="color: inherit; text-decoration: none;">Home</a>
+        </p>
+      </div>
+    </footer>
   </body>
 </html>
