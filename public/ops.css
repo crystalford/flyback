@@ -408,6 +408,30 @@ textarea.code-block {
   word-break: break-word;
 }
 
+.footer {
+  max-width: 1100px;
+  margin: 0 auto 32px;
+  padding: 0 24px 32px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--ink-soft);
+  font-family: "Segoe UI", "Trebuchet MS", sans-serif;
+  font-size: 0.85rem;
+}
+
+.footer a {
+  color: var(--ink);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.footer a:hover {
+  color: var(--accent);
+}
+
 @media (max-width: 640px) {
   .shell {
     padding: 32px 16px 64px;

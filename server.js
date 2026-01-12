@@ -5039,24 +5039,27 @@ const server = http.createServer(async (req, res) => {
       }
 
       if (req.method === "GET") {
-        if (
-          url.pathname === "/ops.html" ||
-          url.pathname.startsWith("/ops.") ||
-          url.pathname.startsWith("/schemas/") ||
-          url.pathname === "/advertiser.html" ||
-          url.pathname.startsWith("/advertiser.") ||
-          url.pathname === "/health.html" ||
-          url.pathname.startsWith("/health.")
-        ) {
-          if (!authorizeOpsRequest(req, url, res)) {
+          if (
+            url.pathname === "/ops.html" ||
+            url.pathname.startsWith("/schemas/") ||
+            url.pathname === "/advertiser.html" ||
+            url.pathname === "/health.html"
+          ) {
+            if (!authorizeOpsRequest(req, url, res)) {
+              return;
+            }
+          }
+          const requestedPath = url.pathname === "/" ? "/index.html" : url.pathname;
+          const relativePath = requestedPath.replace(/^\/+/, "");
+          const filePath = path.resolve(publicDir, relativePath);
+          if (!filePath.startsWith(publicDir)) {
+            res.writeHead(403, { "Content-Type": "text/plain" });
+            res.end("Forbidden");
             return;
           }
+          serveStatic(res, filePath);
+          return;
         }
-        const requestedPath = url.pathname === "/" ? "/index.html" : url.pathname;
-        const filePath = path.join(publicDir, requestedPath);
-        serveStatic(res, filePath);
-        return;
-      }
 
     res.writeHead(405, { "Content-Type": "text/plain" });
     res.end("Method not allowed");
