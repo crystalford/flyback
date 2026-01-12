@@ -587,6 +587,10 @@ Payout reconciliation status is surfaced in `/v1/reports` as `payout_reconciliat
 - Basic in-memory rate limiting is enabled (set `RATE_LIMIT_BYPASS=true` to disable).
 - Every request receives a `X-Request-Id` header for log correlation.
 
+## 16.34 Log Export (V5)
+
+`npm run logs:export -- --in ./server.log --out ./audit.log --include request_id` filters a log file into a smaller audit slice.
+
 ## 16.2 V2 Config Versions & Migrations
 
 Each config file includes a `version` integer. On startup, the server detects the version, runs in-process migrations in order, then validates the migrated shape. If a migration is missing or the version is ahead of the code, startup fails with a clear log.

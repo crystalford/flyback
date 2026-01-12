@@ -24,6 +24,7 @@
     "billing:payout-export": "node scripts/payout_export_csv.js",
     "billing:payout-reconcile": "node scripts/payout_reconcile.js",
     "billing:publisher-statement": "node scripts/publisher_statement.js",
-    "webhook:verify": "node scripts/verify_webhook.js"
+    "webhook:verify": "node scripts/verify_webhook.js",
+    "logs:export": "node scripts/export_logs.js"
   }
 }
