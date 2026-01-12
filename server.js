@@ -4920,10 +4920,15 @@ const serveStatic = (res, filePath) => {
   const ext = path.extname(filePath);
   const contentType = contentTypes[ext] || "application/octet-stream";
   const data = fs.readFileSync(filePath);
+  const cacheControl =
+    ext === ".html" || ext === ".css" || ext === ".js"
+      ? "no-store, must-revalidate"
+      : "public, max-age=300";
 
   res.writeHead(200, {
     "Content-Type": contentType,
-    "Content-Length": data.length
+    "Content-Length": data.length,
+    "Cache-Control": cacheControl
   });
   res.end(data);
 };
