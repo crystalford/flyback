@@ -2,6 +2,7 @@ const apiKeyInput = document.getElementById("apiKey");
 const saveKeyButton = document.getElementById("saveKey");
 const refreshButton = document.getElementById("refresh");
 const useDemoKeyButton = document.getElementById("useDemoKey");
+const resetTourButton = document.getElementById("resetTour");
 const tourEl = document.getElementById("tour");
 const tourTitleEl = document.getElementById("tourTitle");
 const tourBodyEl = document.getElementById("tourBody");
@@ -449,6 +450,11 @@ useDemoKeyButton.addEventListener("click", () => {
   apiKeyInput.value = "demo-advertiser-key";
   localStorage.setItem("flyback_advertiser_key", apiKeyInput.value.trim());
   refresh();
+});
+
+resetTourButton.addEventListener("click", () => {
+  localStorage.removeItem(TOUR_KEY);
+  openTour();
 });
 
 refreshButton.addEventListener("click", () => {
