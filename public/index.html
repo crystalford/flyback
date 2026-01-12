@@ -20,6 +20,9 @@
             <a href="/advertiser.html" class="nav-link">Advertiser</a>
           </nav>
         </div>
+        <div class="controls">
+          <button id="openQuickstart" class="btn">Open Quickstart</button>
+        </div>
       </header>
 
       <section class="strip">
@@ -54,15 +57,15 @@
           <div class="table">
             <div class="row">
               <span>1. Start the server</span>
-              <span>`node server.js`</span>
+              <span><code>node server.js</code></span>
             </div>
             <div class="row">
               <span>2. Open ops view</span>
-              <span>`/ops.html?api_key=demo-publisher-key`</span>
+              <span><code>/ops.html?api_key=demo-publisher-key</code></span>
             </div>
             <div class="row">
               <span>3. Open advertiser view</span>
-              <span>`/advertiser.html?api_key=demo-advertiser-key`</span>
+              <span><code>/advertiser.html?api_key=demo-advertiser-key</code></span>
             </div>
             <div class="row">
               <span>4. Trigger conversions</span>
@@ -71,8 +74,29 @@
           </div>
         </div>
       </section>
+
+      <section class="card">
+        <div class="card-header">
+          <h2>Demo Keys</h2>
+          <div class="controls">
+            <button id="copyPublisherKey" class="btn ghost">Copy Publisher Key</button>
+            <button id="copyAdvertiserKey" class="btn ghost">Copy Advertiser Key</button>
+          </div>
+        </div>
+        <div class="table">
+          <div class="row">
+            <span>Publisher key</span>
+            <span id="publisherKeyValue">demo-publisher-key</span>
+          </div>
+          <div class="row">
+            <span>Advertiser key</span>
+            <span id="advertiserKeyValue">demo-advertiser-key</span>
+          </div>
+        </div>
+      </section>
     </main>
 
     <script src="/runtime.js" async></script>
+    <script src="/landing.js" type="module"></script>
   </body>
 </html>
